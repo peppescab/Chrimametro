@@ -1,60 +1,97 @@
 package ch.zu.chrimametro.ui
 
 import android.content.Context
+import android.content.Intent
+import android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+import androidx.compose.material.icons.Icons
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.Image
+import androidx.glance.ImageProvider
+import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
 import androidx.glance.layout.Alignment
+import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.padding
+import androidx.glance.layout.size
+import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import androidx.glance.unit.ColorProvider
+import ch.zu.chrimametro.MainActivity
+import ch.zu.chrimametro.R
+import java.lang.reflect.Modifier
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 class MainWidget : GlanceAppWidget() {
 
-    companion object {
-        private val SMALL_SQUARE = DpSize(100.dp, 100.dp)
-        private val HORIZONTAL_RECTANGLE = DpSize(250.dp, 100.dp)
-        private val BIG_SQUARE = DpSize(250.dp, 250.dp)
-    }
-
-    override val sizeMode = SizeMode.Exact
+    val dailyBudget = 60.5
+    val salaryDay = 25
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-
-        // In this method, load data needed to render the AppWidget.
-        // Use `withContext` to switch to another thread for long running
-        // operations.
-
         provideContent {
             // create your AppWidget here
-            Content()
+            Content(context)
         }
     }
 
-
     @Composable
-    fun Content() {
+    fun Content(context: Context) {
+        val currentDate = LocalDate.now()
         Row(
             modifier = GlanceModifier.fillMaxSize().background(Color.White)
-                .padding(vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(vertical = 8.dp)
+                .clickable {
+                    context.startActivity(
+                        Intent(
+                            context,
+                            MainActivity::class.java
+                        ).apply {
+                            flags = FLAG_ACTIVITY_NEW_TASK
+                        }
+                    )
+                },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(
-                "2340 CHF",
-                style = TextStyle(fontSize = 23.sp),
-                modifier = GlanceModifier.padding(horizontal = 8.dp)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    (daysToSalaryDay(currentDate) * dailyBudget).toString() + " Fr",
+                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold),
+                    modifier = GlanceModifier.padding(end = 16.dp)
+                )
+                Text(
+                    daysToSalaryDay(currentDate).toString(),
+                    style = TextStyle(fontSize = 14.sp, color = ColorProvider(Color.Gray))
+                )
+            }
+            Image(
+                provider = ImageProvider(R.drawable.ic_wallet),
+                contentDescription = "Image Icon",
+                modifier = GlanceModifier.fillMaxSize().size(28.dp)
             )
-            Text("41")
         }
+    }
+
+    private fun daysToSalaryDay(currentDate: LocalDate): Int {
+        val targetDate = if (currentDate.dayOfMonth >= 25) {
+            currentDate.plusMonths(1).withDayOfMonth(25)
+        } else {
+            currentDate.withDayOfMonth(25)
+        }
+        return ChronoUnit.DAYS.between(currentDate, targetDate).toInt()
     }
 }
