@@ -16,7 +16,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 fun BottomNavigationBar(navController: NavController) {
 
     val itemsNavigation = listOf(
-        Screen.Earn,
+        Screen.HomeScreen,
+        Screen.EarnScreen,
         //TODO
        /* Screen.Home,
        // Screen.Month,

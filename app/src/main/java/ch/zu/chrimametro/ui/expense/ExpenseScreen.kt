@@ -11,6 +11,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,7 +32,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
-import androidx.compose.material3.contentColorFor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
@@ -50,73 +50,105 @@ import ch.zu.chrimametro.ui.theme.ChrimametroTheme
 @Composable
 fun ExpenseScreen(viewModel: MainViewmodel) {
     val message = remember { mutableStateOf("Edit Me") }
-
     val openDialog = remember { mutableStateOf(false) }
     val editMessage = remember { mutableStateOf("999") }
-
     val currentName = remember { mutableStateOf("") }
-
     val myState by viewModel.myStateFlow.collectAsState(emptyList())
 
-    Box {
-        LazyColumn {
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth() // Ensure the row takes up the full width
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween, // Distribute space evenly between the buttons,
-                    verticalAlignment = Alignment.CenterVertically // Center the content vertically
-                ) {
-                    Text(
-                        modifier = Modifier.padding(16.dp),
-                        text = "Average expense :" + String.format("%.2f", viewModel.expenseAverage()) + " ₣",
-                        style = MaterialTheme.typography.bodyMedium
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface)
+    ) {
+        Column {
+            // Header Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Expense Icon",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
                     )
-
-                    FloatingActionButton(
-                        onClick = { viewModel.addNextMonth() },
-                        modifier = Modifier
-                            .padding(16.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Sort",
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Average expense:",
+                        style = MaterialTheme.typography.titleMedium
+                    )
                 }
-            }
-            items(myState, key = { it.name }) { month ->
-                //  SwipeCard(onDelete = { viewModel.onDeleteMonth(month) }) {
-                MonthlyCard(
-                    model = month, addEntry = openDialog,
-                    elementClicked = { currentName.value = month.name },
-                    viewModel
+                Text(
+                    text = "${String.format("%.2f", viewModel.expenseAverage())} ₣",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 )
-                //  }
+            }
+
+            // List of months
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(myState, key = { it.name }) { month ->
+                    MonthlyCard(
+                        model = month,
+                        addEntry = openDialog,
+                        elementClicked = { currentName.value = month.name },
+                        viewModel = viewModel
+                    )
+                }
             }
         }
 
+        // Floating Button to add next month
+        FloatingActionButton(
+            onClick = { viewModel.addNextMonth() },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(24.dp),
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = "Add month",
+                modifier = Modifier.size(28.dp)
+            )
+        }
+
+        // Dialog overlay
         if (openDialog.value) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
-                        color = contentColorFor(MaterialTheme.colorScheme.background).copy(alpha = 0.6f)
+                        MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f)
                     )
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = {
-                            openDialog.value = false
-                        }), contentAlignment = Alignment.Center
+                        onClick = { openDialog.value = false }
+                    ),
+                contentAlignment = Alignment.Center
             ) {
-                CustomDialog(message, openDialog, editMessage, viewModel, currentName.value)
+                CustomDialog(
+                    message = message,
+                    openDialog = openDialog,
+                    editMessage = editMessage,
+                    viewModel = viewModel,
+                    nameToStore = currentName.value
+                )
             }
         }
     }
 }
+
 
 @Preview(showBackground = true)
 @Composable

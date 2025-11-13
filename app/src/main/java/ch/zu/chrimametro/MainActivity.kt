@@ -20,6 +20,7 @@ import ch.zu.chrimametro.navigation.Screen
 import ch.zu.chrimametro.ui.budget.BudgetViewModel
 import ch.zu.chrimametro.ui.earning.EarningsScreen
 import ch.zu.chrimametro.ui.earning.EarningsViewModel
+import ch.zu.chrimametro.ui.expense.ExpenseScreen
 import ch.zu.chrimametro.ui.expense.MainViewmodel
 import ch.zu.chrimametro.ui.graphs.GraphViewModel
 import ch.zu.chrimametro.ui.monthbudget.MonthBudgetViewModel
@@ -48,45 +49,22 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
-                    Scaffold(
-                        bottomBar = { BottomNavigationBar(navController = navController) }
-                    ) { innerPadding ->
+                    Scaffold(bottomBar = { BottomNavigationBar(navController = navController) }) { innerPadding ->
                         NavHost(
                             navController = navController,
-                            startDestination = Screen.Earn.route,
+                            startDestination = Screen.HomeScreen.route,
                             modifier = Modifier.padding(innerPadding)
                         ) {
-                            composable(Screen.Earn.route) { EarningsScreen(earningsViewModel) }
-                           //TODO
-                            /*
-                            composable(Screen.Home.route) { ExpenseScreen(viewModel = viewModel) }
-                            composable(
-                                route = "${Screen.Budget.route}/{budgetId}",
-                                arguments = listOf(navArgument("budgetId") { type = NavType.StringType })
-                            ) { backStackEntry ->
-                                val budgetId = backStackEntry.arguments?.getString("budgetId")
-                                budgetId?.let {
-                                    BudgetScreen(
-                                        viewModel = budgetViewmodel,
-                                        nameMonth = it, navController = navController
-                                    )
-                                }
+                            composable(Screen.HomeScreen.route) {
+                                ExpenseScreen(viewModel = viewModel)
                             }
-                            composable(Screen.Month.route) {
-                                MonthBudgetScreen(
-                                    viewModel = monthBudgetViewModel,
-                                    navController = navController
-                                )
+
+                            composable(Screen.EarnScreen.route) {
+                                EarningsScreen(earningsViewModel)
                             }
-                            composable(Screen.Graph.route) {
-                                GraphsScreen(viewModel = pieChartViewModel)
-                            }
-                            composable(Screen.Split.route) {
-                                SplitInvestimentScreen(splitViewModel)
-                            }
-                            */
                         }
                     }
+
                 }
 
             }
