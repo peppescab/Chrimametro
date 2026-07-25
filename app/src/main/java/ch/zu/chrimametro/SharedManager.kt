@@ -69,15 +69,27 @@ class SharedPreferenceManager @Inject constructor(@ApplicationContext private va
         )
     }
 
-    fun saveMonthWithdrawList(monthName: String, valueToAdd: Float? = null, noteToAdd: String? = null) {
+    fun saveMonthWithdrawList(
+        monthName: String, valueToAdd: Float? = null, noteToAdd: String? = null
+    ) {
         val loadedList = loadMonthWithdrawList().toMutableList()
         val monthWithdrawModel = loadedList.find { it.name == monthName }
         // If the MonthWithdrawModel object is found, add the expense to its expenses list
         valueToAdd?.let {
             monthWithdrawModel?.expenses?.add(it)
         } ?: run {
+            //qui il salary ci deve essere perchè è la prima volta che aggiungiamo il mese
             if (noteToAdd == null) {
-                loadedList.add(0, MonthWithdrawModel(monthName, mutableListOf()))
+
+                val totalExpenses =
+                    loadUiEarningState().insuranceCost.toFloat() + loadUiEarningState().houseCost.toFloat()
+
+                loadedList.add(
+                    0, MonthWithdrawModel(
+                        monthName, mutableListOf(), salary = loadUiEarningState()
+                            .netMonthlySalary.toFloat(), fixedCosts = totalExpenses
+                    )
+                )
             } else {
                 monthWithdrawModel?.listNote?.add(noteToAdd)
             }
@@ -210,33 +222,81 @@ class SharedPreferenceManager @Inject constructor(@ApplicationContext private va
 }
 
 val stubList = mutableListOf(
-    MonthWithdrawModel("Nov 2025", mutableListOf(999f, 847f, 999f), mutableListOf("400 marocco")),
-    MonthWithdrawModel("Oct 2025", mutableListOf(300f, 999f, 463f), mutableListOf("tromso 200")),
-    MonthWithdrawModel("Sep 2025", mutableListOf(999f, 999f, 130f, 500f, 400f, 500f, 500f), mutableListOf("anelli 1000","cardiologo 132","dentista 112","passaporto 115")),
-    MonthWithdrawModel("Aug 2025", mutableListOf(999f, 150f, 463f, 400f, 300f), mutableListOf("ombrellone 400")),
-    MonthWithdrawModel("Jul 2025", mutableListOf(999f, 999f, 460f), mutableListOf()),
-    MonthWithdrawModel("Jun 2025", mutableListOf(999f, 999f, 999f, 999f, 663f, 485f), mutableListOf("televisione 605","trasloco 600","Ikea 240","viaggio a bari 800","Amazon 200")),
-    MonthWithdrawModel("May 2025", mutableListOf(500f, 800f, 1000f, 534f, 333f), mutableListOf("stellato 175","Ikea 2300")),
-    MonthWithdrawModel("Apr 2025", mutableListOf(666f, 999f, 300f), mutableListOf()),
-    MonthWithdrawModel("Mar 2025", mutableListOf(999f, 333f, 333f, 333f), mutableListOf()),
-    MonthWithdrawModel("Feb 2025", mutableListOf(999f, 999f, 999f, 999f), mutableListOf()),
-    MonthWithdrawModel("Jan 2025", mutableListOf(999f, 999f), mutableListOf()),
-    MonthWithdrawModel("Dec 2024", mutableListOf(999f, 999f, 999f), mutableListOf()),
-    MonthWithdrawModel("Nov 2024", mutableListOf(999f, 665f), mutableListOf()),
-    MonthWithdrawModel("Oct 2024", mutableListOf(999f, 999f), mutableListOf()),
-    MonthWithdrawModel("Sep 2024", mutableListOf(999f, 333f, 200f), mutableListOf()),
-    MonthWithdrawModel("Aug 2024", mutableListOf(999f, 999f, 999f, 999f), mutableListOf()),
-    MonthWithdrawModel("Jul 2024", mutableListOf(999f, 999f), mutableListOf()),
-    MonthWithdrawModel("Jun 2024", mutableListOf(999f, 999f, 999f), mutableListOf()),
-    MonthWithdrawModel("May 2024", mutableListOf(999f, 999f, 999f), mutableListOf()),
-    MonthWithdrawModel("Apr 2024", mutableListOf(999f, 999f, 500f, 333f), mutableListOf()),
-    MonthWithdrawModel("Mar 2024", mutableListOf(1000f, 400f), mutableListOf()),
-    MonthWithdrawModel("Feb 2024", mutableListOf(999f, 340f, 999f, 903f), mutableListOf("Swica","Viaggio in Calabria")),
-    MonthWithdrawModel("Jan 2024", mutableListOf(130f, 999f), mutableListOf("Insurance","Viaggio a Monaco")),
-    MonthWithdrawModel("Dec 2023", mutableListOf(999f, 800f, 1000f), mutableListOf("Swica","Viaggio in Calabria")),
-    MonthWithdrawModel("Nov 2023", mutableListOf(999f, 800f, 1000f), mutableListOf("Swica","Viaggio in Calabria"))
-)
+    MonthWithdrawModel("Nov 2025", mutableListOf(999f, 847f, 999f), mutableListOf("400 marocco"), 7408f, 2650f),
+    MonthWithdrawModel("Oct 2025", mutableListOf(300f, 999f, 463f), mutableListOf("tromso 200"), 7408f, 2650f),
+    MonthWithdrawModel(
+        "Sep 2025",
+        mutableListOf(999f, 999f, 130f, 500f, 400f, 500f, 500f),
+        mutableListOf("anelli 1000", "cardiologo 132", "dentista 112", "passaporto 115"),
+        7408f,
+        2650f
+    ),
+    MonthWithdrawModel(
+        "Aug 2025",
+        mutableListOf(999f, 150f, 463f, 400f, 300f),
+        mutableListOf("ombrellone 400"),
+        7408f,
+        2650f
+    ),
+    MonthWithdrawModel("Jul 2025", mutableListOf(999f, 999f, 460f), mutableListOf(), 7408f, 2650f),
+    MonthWithdrawModel(
+        "Jun 2025",
+        mutableListOf(999f, 999f, 999f, 999f, 663f, 485f),
+        mutableListOf("televisione 605", "trasloco 600", "Ikea 240", "viaggio a bari 800", "Amazon 200"),
+        7408f,
+        2650f
+    ),
+    MonthWithdrawModel(
+        "May 2025",
+        mutableListOf(500f, 800f, 1000f, 534f, 333f),
+        mutableListOf("stellato 175", "Ikea 2300"),
+        7398f,
+        2269f
+    ),
+    MonthWithdrawModel("Apr 2025", mutableListOf(666f, 999f, 300f), mutableListOf(), 7398f, 2269f),
+    MonthWithdrawModel("Mar 2025", mutableListOf(999f, 333f, 333f, 333f), mutableListOf(), 7369f, 2269f),
+    MonthWithdrawModel("Feb 2025", mutableListOf(999f, 999f, 999f, 999f), mutableListOf(), 7142f, 2269f),
+    MonthWithdrawModel("Jan 2025", mutableListOf(999f, 999f), mutableListOf(), 7142f, 2269f),
+    MonthWithdrawModel("Dec 2024", mutableListOf(999f, 999f, 999f), mutableListOf(), 7142f, 2269f),
+    MonthWithdrawModel("Nov 2024", mutableListOf(999f, 665f), mutableListOf(), 7142f, 2269f),
+    MonthWithdrawModel("Oct 2024", mutableListOf(999f, 999f), mutableListOf(), 7142f, 2269f),
+    MonthWithdrawModel("Sep 2024", mutableListOf(999f, 333f, 200f), mutableListOf(), 7142f, 2269f),
+    MonthWithdrawModel("Aug 2024", mutableListOf(999f, 999f, 999f, 999f), mutableListOf(), 7142f, 2269f),
+    MonthWithdrawModel("Jul 2024", mutableListOf(999f, 999f), mutableListOf(), 7142f, 2269f),
+    MonthWithdrawModel("Jun 2024", mutableListOf(999f, 999f, 999f), mutableListOf(), 7142f, 2269f),
+    MonthWithdrawModel("May 2024", mutableListOf(999f, 999f, 999f), mutableListOf(), 7142f, 2269f),
+    MonthWithdrawModel("Apr 2024", mutableListOf(999f, 999f, 500f, 333f), mutableListOf(), 7142f, 2269f),
+    MonthWithdrawModel("Mar 2024", mutableListOf(1000f, 400f), mutableListOf(), 7142f, 2269f),
+    MonthWithdrawModel(
+        "Feb 2024",
+        mutableListOf(999f, 340f, 999f, 903f),
+        mutableListOf("Swica", "Viaggio in Calabria"),
+        7142f,
+        2269f
+    ),
+    MonthWithdrawModel(
+        "Jan 2024",
+        mutableListOf(130f, 999f),
+        mutableListOf("Insurance", "Viaggio a Monaco"),
+        7142f,
+        2269f
+    ),
+    MonthWithdrawModel(
+        "Dec 2023",
+        mutableListOf(999f, 800f, 1000f),
+        mutableListOf("Swica", "Viaggio in Calabria"),
+        7142f,
+        2269f
+    ),
+    MonthWithdrawModel(
+        "Nov 2023",
+        mutableListOf(999f, 800f, 1000f),
+        mutableListOf("Swica", "Viaggio in Calabria"),
+        7142f,
+        2269f
+    )
 
+)
 
 val stubBudgetModelLists = listOf(
     BudgetModel(

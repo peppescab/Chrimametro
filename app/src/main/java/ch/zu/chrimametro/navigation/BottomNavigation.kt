@@ -18,11 +18,7 @@ fun BottomNavigationBar(navController: NavController) {
     val itemsNavigation = listOf(
         Screen.HomeScreen,
         Screen.EarnScreen,
-        //TODO
-       /* Screen.Home,
-       // Screen.Month,
-       // Screen.Graph,
-       // Screen.Split */
+        Screen.CashFlowScreen,
     )
 
     NavigationBar {

@@ -57,8 +57,11 @@ fun ChrimametroTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = darkTheme
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            // Icone scure quando il tema è chiaro
+            insetsController.isAppearanceLightStatusBars = !darkTheme
+            @Suppress("DEPRECATION")
+            window.statusBarColor = colorScheme.surface.toArgb()
         }
     }
 

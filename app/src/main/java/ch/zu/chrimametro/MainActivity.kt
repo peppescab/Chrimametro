@@ -18,9 +18,10 @@ import androidx.work.WorkManager
 import ch.zu.chrimametro.navigation.BottomNavigationBar
 import ch.zu.chrimametro.navigation.Screen
 import ch.zu.chrimametro.ui.budget.BudgetViewModel
+import ch.zu.chrimametro.ui.cashflow.CashFlowScreen
 import ch.zu.chrimametro.ui.earning.EarningsScreen
 import ch.zu.chrimametro.ui.earning.EarningsViewModel
-import ch.zu.chrimametro.ui.expense.ExpenseScreen
+import ch.zu.chrimametro.ui.expense.ExpensesScreen
 import ch.zu.chrimametro.ui.expense.MainViewmodel
 import ch.zu.chrimametro.ui.graphs.GraphViewModel
 import ch.zu.chrimametro.ui.monthbudget.MonthBudgetViewModel
@@ -56,11 +57,14 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.padding(innerPadding)
                         ) {
                             composable(Screen.HomeScreen.route) {
-                                ExpenseScreen(viewModel = viewModel)
+                                ExpensesScreen(viewModel = viewModel)
                             }
 
                             composable(Screen.EarnScreen.route) {
                                 EarningsScreen(earningsViewModel)
+                            }
+                            composable(Screen.CashFlowScreen.route) {
+                                CashFlowScreen(viewModel)
                             }
                         }
                     }

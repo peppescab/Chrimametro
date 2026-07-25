@@ -4,28 +4,11 @@
 */
 package ch.zu.chrimametro
 
-import ch.zu.chrimametro.ui.expense.MonthWithdrawModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
 object Utils {
-
-    fun fromListToMap(monthWithdrawList: List<MonthWithdrawModel>?): MutableMap<String, List<Float>> {
-        val mutableMapToRes = mutableMapOf<String, List<Float>>()
-        monthWithdrawList?.forEach {
-            mutableMapToRes[it.name] = it.expenses
-        }
-        return mutableMapToRes
-    }
-
-    fun fromMapToList(mapToTrans: Map<String, MutableList<Float>>?): MutableList<MonthWithdrawModel> {
-        val listToRes = mutableListOf<MonthWithdrawModel>()
-        mapToTrans?.forEach {
-            listToRes.add(MonthWithdrawModel(it.key, it.value))
-        }
-        return listToRes
-    }
 
     fun addMonth(monthS: String): String {
         // Define the date format

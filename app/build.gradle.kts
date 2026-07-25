@@ -51,6 +51,7 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
 }
 
 dependencies {
@@ -84,15 +85,9 @@ dependencies {
     // --- Navigation ---
     implementation("androidx.navigation:navigation-compose:2.8.4")
 
-    // --- Serialization ---
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
-
     // --- Glance (Widgets) ---
     implementation("androidx.glance:glance-appwidget:1.1.0")
     implementation("androidx.glance:glance-material3:1.1.0")
-
-    // --- Accompanist ---
-    implementation("com.google.accompanist:accompanist-swiperefresh:0.36.0")
 
     // --- Hilt ---
     implementation("com.google.dagger:hilt-android:2.51.1")
@@ -105,6 +100,9 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+
+    implementation("com.github.tehras:charts:0.2.2-alpha")
+
 }
 
 kapt {

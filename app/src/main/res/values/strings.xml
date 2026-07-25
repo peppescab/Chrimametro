@@ -1,3 +1,30 @@
 <resources>
     <string name="app_name">Chrimametro</string>
+    <string name="cd_add_month">Aggiungi mese</string>
+    <string name="cd_delete_month">Elimina mese</string>
+    <string name="cd_delete_expense">Elimina spesa</string>
+    <string name="cd_delete_note">Elimina nota</string>
+
+    <string name="month_total_value">Totale: %1$s CHF</string>
+    <string name="month_net_value">Netto: %1$s CHF</string>
+    <string name="expenses_section_title">Spese</string>
+    <string name="expenses_empty">Nessuna spesa inserita</string>
+    <string name="expense_amount_value">%1$s CHF</string>
+
+    <string name="notes_section_title">Note</string>
+    <string name="notes_empty">Nessuna nota inserita</string>
+    <string name="note_label">Nota</string>
+
+    <string name="add_expense">Aggiungi spesa</string>
+    <string name="add_note">Aggiungi nota</string>
+    <string name="new_expense_for_month">Nuova spesa - %1$s</string>
+    <string name="new_note_for_month">Nuova nota - %1$s</string>
+    <string name="expense_amount_label">Importo (CHF)</string>
+
+    <string name="delete_month_title">Eliminare %1$s?</string>
+    <string name="delete_month_message">Questa operazione rimuove il mese con tutte le spese e le note.</string>
+
+    <string name="action_save">Salva</string>
+    <string name="action_cancel">Annulla</string>
+    <string name="action_delete">Elimina</string>
 </resources>
