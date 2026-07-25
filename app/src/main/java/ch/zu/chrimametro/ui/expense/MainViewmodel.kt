@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
@@ -23,6 +26,9 @@ class MainViewmodel @Inject constructor(
 
     private val _myStateFlow = MutableStateFlow(emptyList<MonthWithdrawModel>())
     val myStateFlow: StateFlow<List<MonthWithdrawModel>> = _myStateFlow.asStateFlow()
+    private val monthDateFormat = SimpleDateFormat("MMM yyyy", Locale.ENGLISH).apply {
+        isLenient = false
+    }
 
     init {
         addNewMonthIfPossible()
@@ -58,11 +64,30 @@ class MainViewmodel @Inject constructor(
     private fun addNewMonthIfPossible() {
         viewModelScope.launch {
             val listMonths = sharedPreferenceManager.loadMonthWithdrawList()
-            if (listMonths.find { it.name == getCurrentMonth() } == null) {
-                sharedPreferenceManager.saveMonthWithdrawList(getCurrentMonth())
+            val currentMonthName = getCurrentMonth()
+            val currentDate = parseMonth(currentMonthName)
+
+            // Remove future empty months (cleanup from previous bug)
+            if (currentDate != null) {
+                val futureJunk = listMonths.filter { month ->
+                    val d = parseMonth(month.name)
+                    d != null && d.after(currentDate) && month.expenses.isEmpty() && month.listNote.isEmpty()
+                }
+                futureJunk.forEach { sharedPreferenceManager.removeMonth(it) }
             }
+
+            // Simply add current month if missing
+            val refreshed = sharedPreferenceManager.loadMonthWithdrawList()
+            if (refreshed.none { it.name == currentMonthName }) {
+                sharedPreferenceManager.saveMonthWithdrawList(currentMonthName)
+            }
+
             load()
         }
+    }
+
+    private fun parseMonth(value: String): Date? {
+        return runCatching { monthDateFormat.parse(value) }.getOrNull()
     }
 
     fun addNextMonth() {
@@ -101,8 +126,9 @@ class MainViewmodel @Inject constructor(
         }
     }
 
-    fun expenseAverage(): Double {
+    suspend fun expenseAverage(): Double {
         val listMonth = sharedPreferenceManager.loadMonthWithdrawList().toMutableList()
+        if (listMonth.isEmpty()) return 0.0
 
         val totalSpense = listMonth.sumOf {
             it.getTotal()

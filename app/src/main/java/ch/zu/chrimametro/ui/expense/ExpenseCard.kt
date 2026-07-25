@@ -4,6 +4,7 @@
  */
 package ch.zu.chrimametro.ui.expense
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -130,12 +131,13 @@ fun MonthlyCard(
                                    .padding(top = 1.dp)
                                    .weight(1f)
                            )
-                           IconButton(onClick = { viewModel?.deleteEntry(model.name, expense) }) {
-                               Icon(
-                                   imageVector = Icons.Default.Delete,
-                                   contentDescription = stringResource(R.string.cd_delete_expense)
-                               )
-                           }
+                           Icon(
+                               imageVector = Icons.Default.Delete,
+                               contentDescription = stringResource(R.string.cd_delete_expense),
+                               modifier = Modifier
+                                   .size(18.dp)
+                                   .clickable { viewModel?.deleteEntry(model.name, expense) }
+                           )
                        }
                    }
                }
@@ -170,12 +172,13 @@ fun MonthlyCard(
                                    .padding(top = 1.dp)
                                    .weight(1f)
                            )
-                           IconButton(onClick = { viewModel?.deleteNote(model.name, note) }) {
-                               Icon(
-                                   imageVector = Icons.Default.Delete,
-                                   contentDescription = stringResource(R.string.cd_delete_note)
-                               )
-                           }
+                           Icon(
+                               imageVector = Icons.Default.Delete,
+                               contentDescription = stringResource(R.string.cd_delete_note),
+                               modifier = Modifier
+                                   .size(18.dp)
+                                   .clickable { viewModel?.deleteNote(model.name, note) }
+                           )
                        }
                    }
                }

@@ -4,6 +4,7 @@ plugins {
     id("kotlin-kapt")
     id("org.jetbrains.kotlin.plugin.compose")
     id("dagger.hilt.android.plugin")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -81,6 +82,7 @@ dependencies {
     // --- Coroutines ---
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     // --- Navigation ---
     implementation("androidx.navigation:navigation-compose:2.8.4")
@@ -92,6 +94,10 @@ dependencies {
     // --- Hilt ---
     implementation("com.google.dagger:hilt-android:2.51.1")
     kapt("com.google.dagger:hilt-android-compiler:2.51.1")
+
+    // --- Firebase ---
+    implementation(platform("com.google.firebase:firebase-bom:33.8.0"))
+    implementation("com.google.firebase:firebase-firestore-ktx")
 
     // --- Other ---
     implementation("com.google.code.gson:gson:2.11.0")

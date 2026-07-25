@@ -9,34 +9,30 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.rememberTransformableState
-import androidx.compose.foundation.gestures.transformable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -46,16 +42,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import ch.zu.chrimametro.ui.expense.MainViewmodel
 import ch.zu.chrimametro.ui.expense.MonthWithdrawModel
 import ch.zu.chrimametro.ui.fromEmojiToColor
@@ -73,11 +65,35 @@ private enum class CashFlowChartKind {
     Pie
 }
 
+private enum class CashFlowTimeRange(
+    val label: String,
+    val maxItems: Int?
+) {
+    Last6("6M", 6),
+    Last12("12M", 12),
+    Last24("24M", 24),
+    All("All", null)
+}
+
 @SuppressLint("DefaultLocale")
 @Composable
 fun CashFlowScreen(viewModel: MainViewmodel) {
     val months by viewModel.myStateFlow.collectAsState(emptyList())
-    var selectedChart by remember { mutableStateOf<CashFlowChartKind?>(null) }
+    var selectedChart by remember { mutableStateOf(CashFlowChartKind.Line) }
+    var selectedRange by remember { mutableStateOf(CashFlowTimeRange.All) }
+    var selectedFocusYear by remember { mutableStateOf("All") }
+    val visibleMonths = remember(months, selectedRange) {
+        selectedRange.maxItems?.let { months.take(it) } ?: months
+    }
+    val monthsForRanking = remember(visibleMonths) {
+        visibleMonths.drop(1).ifEmpty { visibleMonths }
+    }
+    val bestMonth = remember(monthsForRanking) {
+        monthsForRanking.maxByOrNull { it.getNet() }
+    }
+    val worstMonth = remember(monthsForRanking) {
+        monthsForRanking.minByOrNull { it.getNet() }
+    }
 
     LazyColumn(
         modifier = Modifier.background(MaterialTheme.colorScheme.surface),
@@ -110,60 +126,136 @@ fun CashFlowScreen(viewModel: MainViewmodel) {
                     MetricCard(
                         modifier = Modifier.weight(1f),
                         title = "Avg Net",
-                        value = months.map { it.getNet() }.average().toFormat() + " ₣"
+                        value = visibleMonths.map { it.getNet() }.average().toFormat() + " ₣"
                     )
                     MetricCard(
                         modifier = Modifier.weight(1f),
                         title = "Avg Expense",
-                        value = months.map { it.getTotal() + it.fixedCosts }.average().toFormat() + " ₣"
+                        value = visibleMonths.map { it.getTotal() + it.fixedCosts }.average().toFormat() + " ₣"
                     )
                     MetricCard(
                         modifier = Modifier.weight(1f),
                         title = "Avg Saving %",
-                        value = months.map { it.getPercentageCashFlow() }.average().toFormat() + "%"
+                        value = visibleMonths.map { it.getPercentageCashFlow() }.average().toFormat() + "%"
                     )
                 }
             }
 
             item {
-                CashFlowInsightsCard(months = months)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    MetricCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Best month",
+                        value = bestMonth?.let { "${it.name} · ${it.getNet().toFormat()} ₣" } ?: "-"
+                    )
+                    MetricCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Worst month",
+                        value = worstMonth?.let { "${it.name} · ${it.getNet().toFormat()} ₣" } ?: "-"
+                    )
+                }
             }
 
             item {
-                ChartGallery(
-                    months = months,
-                    onChartSelected = { selectedChart = it }
+                CashFlowChartControls(
+                    selectedChart = selectedChart,
+                    onChartSelected = { selectedChart = it },
+                    selectedRange = selectedRange,
+                    onRangeSelected = { selectedRange = it }
                 )
             }
 
             item {
-                ExpensesSummaryExpandable(months)
-            }
-
-            item {
-                Text(
-                    text = "Monthly details",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                CashFlowMainChart(
+                    months = visibleMonths,
+                    chartKind = selectedChart
                 )
             }
 
-            items(months) { month ->
-                MonthCashFlowRow(month)
+            item {
+                CashFlowInsightsCard(months = visibleMonths)
             }
 
             item {
-                AnnualSummarySection(months = months)
+                FocusMonthSection(
+                    months = visibleMonths,
+                    selectedYear = selectedFocusYear,
+                    onYearSelected = { selectedFocusYear = it }
+                )
             }
         }
     }
+}
 
-    selectedChart?.let { chartKind ->
-        CashFlowFullscreenChartDialog(
-            chartKind = chartKind,
-            months = months,
-            onDismiss = { selectedChart = null }
-        )
+@Composable
+private fun FocusMonthSection(
+    months: List<MonthWithdrawModel>,
+    selectedYear: String,
+    onYearSelected: (String) -> Unit
+) {
+    if (months.isEmpty()) return
+
+    val yearOptions = remember(months) {
+        val available = years.filter { year -> months.any { it.name.contains(year) } }
+        listOf("All") + available
+    }
+    val safeYear = if (selectedYear in yearOptions) selectedYear else "All"
+    val filteredMonths = remember(months, safeYear) {
+        if (safeYear == "All") months else months.filter { it.name.contains(safeYear) }
+    }
+    if (filteredMonths.isEmpty()) return
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "Focus month",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                yearOptions.forEach { year ->
+                    val isSelected = year == safeYear
+                    if (isSelected) {
+                        Button(onClick = { onYearSelected(year) }) {
+                            Text(year)
+                        }
+                    } else {
+                        OutlinedButton(onClick = { onYearSelected(year) }) {
+                            Text(year)
+                        }
+                    }
+                }
+            }
+
+            Text(
+                text = "Dettaglio mesi",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                filteredMonths.forEach { month ->
+                    MonthCashFlowRow(month = month)
+                }
+            }
+        }
     }
 }
 
@@ -193,9 +285,70 @@ private fun MetricCard(
 }
 
 @Composable
-private fun ChartGallery(
+private fun CashFlowChartControls(
+    selectedChart: CashFlowChartKind,
+    onChartSelected: (CashFlowChartKind) -> Unit,
+    selectedRange: CashFlowTimeRange,
+    onRangeSelected: (CashFlowTimeRange) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Charts", style = MaterialTheme.typography.titleMedium)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CashFlowChartKind.entries.forEach { kind ->
+                    val isSelected = kind == selectedChart
+                    if (isSelected) {
+                        Button(onClick = { onChartSelected(kind) }) {
+                            Text(kind.toLabel())
+                        }
+                    } else {
+                        OutlinedButton(onClick = { onChartSelected(kind) }) {
+                            Text(kind.toLabel())
+                        }
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CashFlowTimeRange.entries.forEach { range ->
+                    val isSelected = range == selectedRange
+                    if (isSelected) {
+                        Button(onClick = { onRangeSelected(range) }) {
+                            Text(range.label)
+                        }
+                    } else {
+                        OutlinedButton(onClick = { onRangeSelected(range) }) {
+                            Text(range.label)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CashFlowMainChart(
     months: List<MonthWithdrawModel>,
-    onChartSelected: (CashFlowChartKind) -> Unit
+    chartKind: CashFlowChartKind
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -208,236 +361,93 @@ private fun ChartGallery(
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text("Charts", style = MaterialTheme.typography.titleMedium)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                ChartThumbnail(
-                    title = "Net bars",
-                    subtitle = "Monthly cash flow",
-                    onClick = { onChartSelected(CashFlowChartKind.Bars) }
-                ) {
-                    BarChart(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(4.dp),
-                        barChartData = BarChartData(
-                            bars = months.mapIndexed { index, month ->
-                                BarChartData.Bar(
-                                    value = month.getNet().toFloat(),
-                                    color = getCashFlowQualityColor(month.getPercentageCashFlow()),
-                                    label = if (shouldShowChartLabel(index, months.size)) month.name else ""
-                                )
-                            }
-                        )
-                    )
-                }
-
-                ChartThumbnail(
-                    title = "Trend line",
-                    subtitle = "Cash flow over time",
-                    onClick = { onChartSelected(CashFlowChartKind.Line) }
-                ) {
-                    CashFlowLineChart(
-                        months = months,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp),
-                        showMonthLabels = false
-                    )
-                }
-
-                ChartThumbnail(
-                    title = "Quality pie",
-                    subtitle = "Last 12 months",
-                    onClick = { onChartSelected(CashFlowChartKind.Pie) }
-                ) {
-                    val emojiCounts = months.take(12)
-                        .groupingBy { getCashFlowEmoji(it.getPercentageCashFlow()) }
-                        .eachCount()
-                    val slices = emojiCounts.map { (emoji, count) ->
-                        PieChartData.Slice(value = count.toFloat(), color = fromEmojiToColor(emoji))
-                    }
-                    PieChart(
-                        pieChartData = PieChartData(slices = slices),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChartThumbnail(
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit,
-    content: @Composable () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .width(180.dp)
-            .height(150.dp)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            Text(
+                text = chartKind.toLabel(),
+                style = MaterialTheme.typography.titleMedium
+            )
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f),
+                    .height(300.dp),
                 contentAlignment = Alignment.Center
             ) {
-                content()
-            }
-        }
-    }
-}
-
-@Composable
-private fun CashFlowFullscreenChartDialog(
-    chartKind: CashFlowChartKind,
-    months: List<MonthWithdrawModel>,
-    onDismiss: () -> Unit
-) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surface)
-                .padding(16.dp)
-        ) {
-            Card(
-                modifier = Modifier.fillMaxSize(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(
-                                text = when (chartKind) {
-                                    CashFlowChartKind.Bars -> "Net bars"
-                                    CashFlowChartKind.Line -> "Trend line"
-                                    CashFlowChartKind.Pie -> "Quality pie"
-                                },
-                                style = MaterialTheme.typography.titleLarge
-                            )
-                            Text(
-                                text = "Pinch to zoom and drag to pan",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        IconButton(onClick = onDismiss) {
-                            Icon(imageVector = Icons.Default.Close, contentDescription = "Close chart")
-                        }
-                    }
-
-                    ZoomableChartStage(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clipToBounds()
-                    ) {
-                        when (chartKind) {
-                            CashFlowChartKind.Bars -> BarChart(
+                when (chartKind) {
+                    CashFlowChartKind.Bars -> {
+                        if (months.isEmpty()) {
+                            Text("No data")
+                        } else {
+                            BarChart(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(8.dp),
+                                    .fillMaxWidth()
+                                    .height(280.dp)
+                                    .padding(horizontal = 4.dp),
                                 barChartData = BarChartData(
-                                bars = months.mapIndexed { index, month ->
+                                    bars = months.mapIndexed { index, month ->
                                         BarChartData.Bar(
                                             value = month.getNet().toFloat(),
-                                        color = getCashFlowQualityColor(month.getPercentageCashFlow()),
-                                        label = if (shouldShowChartLabel(index, months.size)) month.name else ""
+                                            color = getCashFlowQualityColor(month.getPercentageCashFlow()),
+                                            label = if (shouldShowChartLabel(index, months.size)) month.name.shortMonthLabel() else ""
                                         )
                                     }
                                 )
                             )
-
-                            CashFlowChartKind.Line -> CashFlowLineChart(
-                                months = months,
+                        }
+                    }
+                    CashFlowChartKind.Line -> {
+                        CashFlowLineChart(
+                            months = months,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(280.dp),
+                            showMonthLabels = true
+                        )
+                    }
+                    CashFlowChartKind.Pie -> {
+                        val emojiCounts = months.take(12)
+                            .groupingBy { getCashFlowEmoji(it.getPercentageCashFlow()) }
+                            .eachCount()
+                        val slices = emojiCounts.map { (emoji, count) ->
+                            PieChartData.Slice(value = count.toFloat(), color = fromEmojiToColor(emoji))
+                        }
+                        if (slices.isEmpty()) {
+                            Text("No data")
+                        } else {
+                            PieChart(
+                                pieChartData = PieChartData(slices = slices),
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(12.dp),
-                                showMonthLabels = true
+                                    .fillMaxWidth()
+                                    .height(250.dp)
                             )
-
-                            CashFlowChartKind.Pie -> {
-                                val emojiCounts = months.take(12)
-                                    .groupingBy { getCashFlowEmoji(it.getPercentageCashFlow()) }
-                                    .eachCount()
-                                val slices = emojiCounts.map { (emoji, count) ->
-                                    PieChartData.Slice(value = count.toFloat(), color = fromEmojiToColor(emoji))
-                                }
-                                PieChart(
-                                    pieChartData = PieChartData(slices = slices),
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(12.dp)
-                                )
-                            }
                         }
                     }
                 }
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                QualityLegendChip(emoji = "🟢", text = ">30%")
+                QualityLegendChip(emoji = "🟡", text = "20-30%")
+                QualityLegendChip(emoji = "🔴", text = "<20%")
             }
         }
     }
 }
 
-@Composable
-private fun ZoomableChartStage(
-    modifier: Modifier = Modifier,
-    content: @Composable BoxScope.() -> Unit
-) {
-    var scale by remember { mutableStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
-    val transformState = rememberTransformableState { zoomChange, panChange, _ ->
-        scale = (scale * zoomChange).coerceIn(1f, 5f)
-        offset += panChange
-    }
+private fun CashFlowChartKind.toLabel(): String = when (this) {
+    CashFlowChartKind.Bars -> "Net bars"
+    CashFlowChartKind.Line -> "Trend line"
+    CashFlowChartKind.Pie -> "Quality pie"
+}
 
-    Box(
-        modifier = modifier
-            .transformable(transformState)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                translationX = offset.x
-                translationY = offset.y
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        content()
-    }
+private fun String.shortMonthLabel(): String {
+    val parts = split(" ")
+    if (parts.size < 2) return this
+    val month = parts[0].take(3)
+    val year = parts[1].takeLast(2)
+    return "$month $year"
 }
 
 @Composable
@@ -611,7 +621,13 @@ fun Double.toFormat() = this.toFloat().toFormat()
 fun Double.toSignedFormat() = String.format("%+.2f", this)
 
 private fun shouldShowChartLabel(index: Int, total: Int): Boolean {
-    return index == 0 || index == total - 1 || index % 4 == 0
+    val step = when {
+        total <= 6 -> 1
+        total <= 12 -> 2
+        total <= 24 -> 4
+        else -> 6
+    }
+    return index == 0 || index == total - 1 || index % step == 0
 }
 
 private fun getCashFlowQualityEmoji(percent: Float): String = when {
@@ -636,8 +652,8 @@ private fun getCashFlowQualityColor(percent: Float): Color = when {
 private fun CashFlowInsightsCard(months: List<MonthWithdrawModel>) {
     val bestMonth = months.maxByOrNull { it.getNet() }
     val worstMonth = months.minByOrNull { it.getNet() }
-    val current12 = months.takeLast(12)
-    val previous12 = months.drop(maxOf(0, months.size - 24)).take(maxOf(0, months.size - 12))
+    val current12 = months.take(12)
+    val previous12 = months.drop(12).take(12)
     val currentAvgPercent = current12.map { it.getPercentageCashFlow() }.average()
     val previousAvgPercent = previous12.map { it.getPercentageCashFlow() }.average()
     val trendText = if (previous12.isNotEmpty()) {
@@ -788,8 +804,8 @@ fun ExpensesSummaryExpandable(months: List<MonthWithdrawModel>) {
 
                 val monthSummary = mutableListOf(
                     MonthSummary("Total", months),
-                    MonthSummary("Last year", months.takeLast(12)),
-                    MonthSummary("Last 6 months", months.takeLast(6))
+                    MonthSummary("Last year", months.take(12)),
+                    MonthSummary("Last 6 months", months.take(6))
                 )
                 years.forEach { year ->
                     val monthsOfYear = months.filter { it.name.contains(year) }

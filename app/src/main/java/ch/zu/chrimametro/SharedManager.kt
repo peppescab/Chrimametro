@@ -5,35 +5,36 @@
 package ch.zu.chrimametro
 
 import android.content.Context
-import android.content.SharedPreferences
 import ch.zu.chrimametro.ui.budget.BudgetModel
 import ch.zu.chrimametro.ui.budget.BudgetSpecificItem
 import ch.zu.chrimametro.ui.earning.EarningModelUiState
 import ch.zu.chrimametro.ui.expense.MonthWithdrawModel
 import ch.zu.chrimametro.ui.monthbudget.MonthBudget
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
-import androidx.core.content.edit
 
 @Singleton
-class SharedPreferenceManager @Inject constructor(@ApplicationContext private val context: Context) {
-
-    private val sharedPreferences: SharedPreferences by lazy {
-        context.getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
-    }
+class SharedPreferenceManager @Inject constructor(
+    private val firestore: FirebaseFirestore,
+    @ApplicationContext context: Context
+) {
     private val gson = Gson()
+    private val appStateDoc = firestore.collection("chrimametro").document("app_state")
+    private val legacyPreferences = context.getSharedPreferences("MyPrefs", Context.MODE_PRIVATE)
 
     private val MONTH_LIST = "monthWithdrawList"
     private val MONTH_BUDGET_LIST = "monthBudgetItemL"
     private val UISTATE = "uiEarningState"
 
-    fun removeMonthWithdrawList(monthName: String, amountToRemove: Float? = null, noteToRemove: String? = null) {
+    suspend fun removeMonthWithdrawList(monthName: String, amountToRemove: Float? = null, noteToRemove: String? = null) {
         val loadedList = loadMonthWithdrawList()
         val monthWithdrawModel = loadedList.find { it.name == monthName }
-        // If the MonthWithdrawModel object is found, add the expense to its expenses list
         if (amountToRemove == null) {
             monthWithdrawModel?.listNote?.remove(noteToRemove)
         } else {
@@ -42,20 +43,19 @@ class SharedPreferenceManager @Inject constructor(@ApplicationContext private va
         storeToMonthList(loadedList)
     }
 
-    fun removeMonth(month: MonthWithdrawModel) {
+    suspend fun removeMonth(month: MonthWithdrawModel) {
         storeToMonthList(loadMonthWithdrawList().also {
             it.remove(month)
         })
     }
 
-    fun removeMonthBudget(month: MonthBudget) {
+    suspend fun removeMonthBudget(month: MonthBudget) {
         storeToMonthBudgetList(loadMonthBudgetList().toMutableList().also {
             it.remove(month)
         })
     }
 
-    fun removeBudgetItemList(item: BudgetModel, currentMonth: String) {
-        // Load the month budget list and update the corresponding month's budget item list
+    suspend fun removeBudgetItemList(item: BudgetModel, currentMonth: String) {
         storeToMonthBudgetList(
             loadMonthBudgetList().toMutableList().also { monthBudgets ->
                 monthBudgets.find { it.nameMonth == currentMonth }?.apply {
@@ -69,25 +69,24 @@ class SharedPreferenceManager @Inject constructor(@ApplicationContext private va
         )
     }
 
-    fun saveMonthWithdrawList(
+    suspend fun saveMonthWithdrawList(
         monthName: String, valueToAdd: Float? = null, noteToAdd: String? = null
     ) {
         val loadedList = loadMonthWithdrawList().toMutableList()
         val monthWithdrawModel = loadedList.find { it.name == monthName }
-        // If the MonthWithdrawModel object is found, add the expense to its expenses list
         valueToAdd?.let {
             monthWithdrawModel?.expenses?.add(it)
         } ?: run {
-            //qui il salary ci deve essere perchè è la prima volta che aggiungiamo il mese
             if (noteToAdd == null) {
-
-                val totalExpenses =
-                    loadUiEarningState().insuranceCost.toFloat() + loadUiEarningState().houseCost.toFloat()
+                val earningState = loadUiEarningState()
+                val totalExpenses = earningState.insuranceCost.toFloat() + earningState.houseCost.toFloat()
 
                 loadedList.add(
                     0, MonthWithdrawModel(
-                        monthName, mutableListOf(), salary = loadUiEarningState()
-                            .netMonthlySalary.toFloat(), fixedCosts = totalExpenses
+                        monthName,
+                        mutableListOf(),
+                        salary = earningState.netMonthlySalary.toFloat(),
+                        fixedCosts = totalExpenses
                     )
                 )
             } else {
@@ -97,16 +96,14 @@ class SharedPreferenceManager @Inject constructor(@ApplicationContext private va
         storeToMonthList(loadedList)
     }
 
-    fun saveBudgetItemList(item: BudgetModel, currentMonth: String): Boolean {
+    suspend fun saveBudgetItemList(item: BudgetModel, currentMonth: String): Boolean {
         val listLoaded = loadBudgetItemList(currentMonth).toMutableList()
         if (listLoaded.find { it.nameBudget == item.nameBudget } != null) {
             return false
         }
-        // Load the month budget list and update the corresponding month's budget item list
         storeToMonthBudgetList(
             loadMonthBudgetList().toMutableList().also { monthBudgets ->
                 monthBudgets.find { it.nameMonth == currentMonth }?.apply {
-                    // Update the budgteItemList with the new item
                     val updatedList = budgteItemList.toMutableList().apply {
                         add(item)
                     }
@@ -118,7 +115,7 @@ class SharedPreferenceManager @Inject constructor(@ApplicationContext private va
         return true
     }
 
-    fun saveSpecificItem(item: BudgetModel, newItem: BudgetSpecificItem, currentMonth: String) {
+    suspend fun saveSpecificItem(item: BudgetModel, newItem: BudgetSpecificItem, currentMonth: String) {
         storeToMonthBudgetList(
             loadMonthBudgetList().toMutableList().also { monthBudgets ->
                 monthBudgets.find { it.nameMonth == currentMonth }?.apply {
@@ -134,7 +131,7 @@ class SharedPreferenceManager @Inject constructor(@ApplicationContext private va
         )
     }
 
-    fun removeSpecificItem(item: BudgetModel, oldItemToRemove: BudgetSpecificItem, currentMonth: String) {
+    suspend fun removeSpecificItem(item: BudgetModel, oldItemToRemove: BudgetSpecificItem, currentMonth: String) {
         storeToMonthBudgetList(
             loadMonthBudgetList().toMutableList().also { monthBudgets ->
                 monthBudgets.find { it.nameMonth == currentMonth }?.apply {
@@ -150,36 +147,56 @@ class SharedPreferenceManager @Inject constructor(@ApplicationContext private va
         )
     }
 
-    fun saveMonthBudget(item: MonthBudget) {
+    suspend fun saveMonthBudget(item: MonthBudget) {
         storeToMonthBudgetList(loadedList = loadMonthBudgetList().toMutableList().also {
             it.add(item)
         })
     }
 
-    fun saveEarningState(state: EarningModelUiState) {
+    suspend fun saveEarningState(state: EarningModelUiState) {
+        storeUiEarning(state)
     }
 
-    fun loadMonthWithdrawList(): MutableList<MonthWithdrawModel> {
-        return sharedPreferences.getString(MONTH_LIST, null)?.let { json ->
-            val type = object : TypeToken<MutableList<MonthWithdrawModel>>() {}.type
-            gson.fromJson(json, type)
-        } ?: stubList
+    suspend fun loadMonthWithdrawList(): MutableList<MonthWithdrawModel> {
+        val remoteJson = getStateJson(MONTH_LIST)
+        val localJson = legacyPreferences.getString(MONTH_LIST, null)
+
+        val remoteList = remoteJson?.let { parseMonthWithdrawList(it) }
+        val localList = localJson?.let { parseMonthWithdrawList(it) }
+
+        val resolvedList = when {
+            localList != null && remoteList == null -> localList
+            localList != null && remoteList != null && shouldPreferLocalMonths(localList, remoteList) -> localList
+            remoteList != null -> remoteList
+            localList != null -> localList
+            else -> stubList.toMutableList()
+        }
+
+        val resolvedJson = gson.toJson(resolvedList)
+        if (remoteJson != resolvedJson) {
+            storeStateJson(MONTH_LIST, resolvedJson)
+        }
+
+        return resolvedList
     }
 
-    fun loadBudgetItemList(monthName: String): List<BudgetModel> {
+    suspend fun loadBudgetItemList(monthName: String): List<BudgetModel> {
         return loadMonthBudgetList().firstOrNull {
             it.nameMonth == monthName
         }?.budgteItemList ?: stubBudgetModelLists
     }
 
-    fun loadMonthBudgetList(): List<MonthBudget> {
-        return sharedPreferences.getString(MONTH_BUDGET_LIST, null)?.let { json ->
+    suspend fun loadMonthBudgetList(): List<MonthBudget> {
+        return getStateJson(MONTH_BUDGET_LIST)?.let { json ->
             val type = object : TypeToken<List<MonthBudget>>() {}.type
-            gson.fromJson(json, type)
-        } ?: stubMonthBudgetList
+            gson.fromJson<List<MonthBudget>>(json, type)
+        } ?: run {
+            storeToMonthBudgetList(stubMonthBudgetList)
+            stubMonthBudgetList
+        }
     }
 
-    fun sortBudgetItemList(currentMonth: String) {
+    suspend fun sortBudgetItemList(currentMonth: String) {
         storeToMonthBudgetList(
             loadMonthBudgetList().toMutableList().also { monthBudgets ->
                 monthBudgets.find { it.nameMonth == currentMonth }?.apply {
@@ -192,26 +209,63 @@ class SharedPreferenceManager @Inject constructor(@ApplicationContext private va
         )
     }
 
-    fun loadUiEarningState(): EarningModelUiState {
-        return sharedPreferences.getString(UISTATE, null)?.let { json ->
+    suspend fun loadUiEarningState(): EarningModelUiState {
+        return getStateJson(UISTATE)?.let { json ->
             val type = object : TypeToken<EarningModelUiState>() {}.type
-            gson.fromJson(json, type)
-        } ?: stubUiEarningState
+            gson.fromJson<EarningModelUiState>(json, type)
+        } ?: run {
+            storeUiEarning(stubUiEarningState)
+            stubUiEarningState
+        }
     }
 
-    private fun storeToMonthList(loadedList: List<MonthWithdrawModel>) {
+    private suspend fun storeToMonthList(loadedList: List<MonthWithdrawModel>) {
         val json = gson.toJson(loadedList)
-        sharedPreferences.edit { putString(MONTH_LIST, json) }
+        storeStateJson(MONTH_LIST, json)
     }
 
-    fun storeUiEarning(uiState: EarningModelUiState) {
+    suspend fun storeUiEarning(uiState: EarningModelUiState) {
         val json = gson.toJson(uiState)
-        sharedPreferences.edit { putString(UISTATE, json) }
+        storeStateJson(UISTATE, json)
     }
 
-    private fun storeToMonthBudgetList(loadedList: List<MonthBudget>) {
+    private suspend fun storeToMonthBudgetList(loadedList: List<MonthBudget>) {
         val json = gson.toJson(loadedList)
-        sharedPreferences.edit { putString(MONTH_BUDGET_LIST, json) }
+        storeStateJson(MONTH_BUDGET_LIST, json)
+    }
+
+    private suspend fun getStateJson(key: String): String? {
+        val snapshot = appStateDoc.get().await()
+        return snapshot.getString(key)
+    }
+
+    private suspend fun storeStateJson(key: String, json: String) {
+        appStateDoc.set(mapOf(key to json), SetOptions.merge()).await()
+    }
+
+    private fun parseMonthWithdrawList(json: String): MutableList<MonthWithdrawModel> {
+        val type = object : TypeToken<MutableList<MonthWithdrawModel>>() {}.type
+        return gson.fromJson<MutableList<MonthWithdrawModel>>(json, type)
+    }
+
+    private fun shouldPreferLocalMonths(
+        localList: List<MonthWithdrawModel>,
+        remoteList: List<MonthWithdrawModel>
+    ): Boolean {
+        val localMonthSet = localList.map { it.name }.toSet()
+        val remoteMonthSet = remoteList.map { it.name }.toSet()
+
+        if ((localMonthSet - remoteMonthSet).isNotEmpty()) {
+            return true
+        }
+
+        if (localList.size > remoteList.size) {
+            return true
+        }
+
+        val localScore = localList.sumOf { it.expenses.size + it.listNote.size } + localList.size
+        val remoteScore = remoteList.sumOf { it.expenses.size + it.listNote.size } + remoteList.size
+        return localScore > remoteScore
     }
 
     private val stubMonthBudgetList = mutableListOf(

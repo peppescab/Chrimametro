@@ -4,12 +4,10 @@
 */
 package ch.zu.chrimametro.di
 
-import android.content.Context
-import ch.zu.chrimametro.SharedPreferenceManager
+import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
@@ -19,7 +17,8 @@ object AppModule {
 
     @Singleton
     @Provides
-    fun provideSharedPreferenceManager(@ApplicationContext context: Context): SharedPreferenceManager {
-        return SharedPreferenceManager(context)
+    fun provideFirebaseFirestore(): FirebaseFirestore {
+        return FirebaseFirestore.getInstance()
     }
+
 }

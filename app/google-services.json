@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "497268440481",
+    "project_id": "cashflow-f45a2",
+    "storage_bucket": "cashflow-f45a2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:497268440481:android:fe245bb84fe59e8befdfe0",
+        "android_client_info": {
+          "package_name": "ch.zu.chrimametro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCLPkBeC4ZcGzy3hkODGPWASYfNrsLRUOE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

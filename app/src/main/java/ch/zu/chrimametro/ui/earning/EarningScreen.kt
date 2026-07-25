@@ -156,8 +156,9 @@ fun EarningsScreen(
 
         val colorProgress = MaterialTheme.colorScheme.primary
         val colorTrack = MaterialTheme.colorScheme.onSurfaceVariant
-        if (isWorkingHours.value) {
             // Circular progress indicator
+
+        if(isWorkingHours.value)
             Box(
                 modifier = Modifier
                     .size(280.dp),
@@ -227,24 +228,5 @@ fun EarningsScreen(
                 label = { Text("Insurance cost") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Image(
-                    modifier = Modifier.size(300.dp),
-                    painter = painterResource(id = R.drawable.ic_spa),
-                    contentDescription = "Spa"
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Relax no work now!",
-                    style = MaterialTheme.typography.headlineMedium,
-                )
-            }
-        }
     }
 }

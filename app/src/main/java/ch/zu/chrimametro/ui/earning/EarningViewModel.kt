@@ -5,10 +5,12 @@
 package ch.zu.chrimametro.ui.earning
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import ch.zu.chrimametro.SharedPreferenceManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -32,13 +34,17 @@ class EarningsViewModel @Inject constructor(
     val earningPerSecond: StateFlow<Double> = _earningPerSecond
 
     init {
-        _uiState.value = sharedPreferenceManager.loadUiEarningState()
+        viewModelScope.launch {
+            _uiState.value = sharedPreferenceManager.loadUiEarningState()
+        }
     }
 
 
     fun saveState(model: EarningModelUiState) {
-        sharedPreferenceManager.storeUiEarning(model)
-        _uiState.value = sharedPreferenceManager.loadUiEarningState()
+        viewModelScope.launch {
+            sharedPreferenceManager.storeUiEarning(model)
+            _uiState.value = sharedPreferenceManager.loadUiEarningState()
+        }
     }
 }
 
