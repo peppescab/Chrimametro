@@ -9,7 +9,9 @@ data class MonthWithdrawModel(
     val expenses: MutableList<Float>,
     val listNote: MutableList<String> = mutableListOf(),
     val salary: Float,
-    val fixedCosts: Float
+    val fixedCosts: Float,
+    val houseCost: Float = 0f,
+    val insuranceCost: Float = 0f
 ) {
     fun getTotal(): Double {
         var expens = 0.0
@@ -31,4 +33,3 @@ data class MonthWithdrawModel(
 
     fun getAverage(): Float = if (expenses.isEmpty()) 0f else expenses.sum() / expenses.size
 }
-

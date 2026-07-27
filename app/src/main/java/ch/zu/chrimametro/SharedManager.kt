@@ -49,6 +49,41 @@ class SharedPreferenceManager @Inject constructor(
         })
     }
 
+    suspend fun updateMonthFinances(monthName: String, salary: Float, fixedCosts: Float) {
+        val loadedList = loadMonthWithdrawList()
+        val index = loadedList.indexOfFirst { it.name == monthName }
+        if (index >= 0) {
+            val old = loadedList[index]
+            loadedList[index] = old.copy(
+                salary = salary,
+                fixedCosts = fixedCosts,
+                houseCost = fixedCosts,
+                insuranceCost = 0f
+            )
+            storeToMonthList(loadedList)
+        }
+    }
+
+    suspend fun updateMonthFinancialDetails(
+        monthName: String,
+        salary: Float,
+        houseCost: Float,
+        insuranceCost: Float
+    ) {
+        val loadedList = loadMonthWithdrawList()
+        val index = loadedList.indexOfFirst { it.name == monthName }
+        if (index >= 0) {
+            val old = loadedList[index]
+            loadedList[index] = old.copy(
+                salary = salary,
+                fixedCosts = houseCost + insuranceCost,
+                houseCost = houseCost,
+                insuranceCost = insuranceCost
+            )
+            storeToMonthList(loadedList)
+        }
+    }
+
     suspend fun removeMonthBudget(month: MonthBudget) {
         storeToMonthBudgetList(loadMonthBudgetList().toMutableList().also {
             it.remove(month)
@@ -79,14 +114,18 @@ class SharedPreferenceManager @Inject constructor(
         } ?: run {
             if (noteToAdd == null) {
                 val earningState = loadUiEarningState()
-                val totalExpenses = earningState.insuranceCost.toFloat() + earningState.houseCost.toFloat()
+                val houseCost = earningState.houseCost.toFloatOrNull() ?: 0f
+                val insuranceCost = earningState.insuranceCost.toFloatOrNull() ?: 0f
+                val totalExpenses = insuranceCost + houseCost
 
                 loadedList.add(
                     0, MonthWithdrawModel(
                         monthName,
                         mutableListOf(),
                         salary = earningState.netMonthlySalary.toFloat(),
-                        fixedCosts = totalExpenses
+                        fixedCosts = totalExpenses,
+                        houseCost = houseCost,
+                        insuranceCost = insuranceCost
                     )
                 )
             } else {
@@ -172,12 +211,30 @@ class SharedPreferenceManager @Inject constructor(
             else -> stubList.toMutableList()
         }
 
-        val resolvedJson = gson.toJson(resolvedList)
+        val normalizedList = resolvedList.map { month ->
+            val normalizedHouse = if (month.houseCost == 0f && month.insuranceCost == 0f && month.fixedCosts > 0f) {
+                month.fixedCosts
+            } else {
+                month.houseCost
+            }
+            val normalizedInsurance = if (month.houseCost == 0f && month.insuranceCost == 0f && month.fixedCosts > 0f) {
+                0f
+            } else {
+                month.insuranceCost
+            }
+            month.copy(
+                houseCost = normalizedHouse,
+                insuranceCost = normalizedInsurance,
+                fixedCosts = normalizedHouse + normalizedInsurance
+            )
+        }.toMutableList()
+
+        val resolvedJson = gson.toJson(normalizedList)
         if (remoteJson != resolvedJson) {
             storeStateJson(MONTH_LIST, resolvedJson)
         }
 
-        return resolvedList
+        return normalizedList
     }
 
     suspend fun loadBudgetItemList(monthName: String): List<BudgetModel> {

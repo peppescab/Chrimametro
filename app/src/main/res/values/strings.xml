@@ -6,7 +6,7 @@
     <string name="cd_delete_note">Elimina nota</string>
 
     <string name="month_total_value">Totale: %1$s CHF</string>
-    <string name="month_net_value">Netto: %1$s CHF</string>
+    <string name="month_net_value">Saldo mese (Entrate - Spese - Fissi): %1$s CHF</string>
     <string name="expenses_section_title">Spese</string>
     <string name="expenses_empty">Nessuna spesa inserita</string>
     <string name="expense_amount_value">%1$s CHF</string>
@@ -23,6 +23,27 @@
 
     <string name="delete_month_title">Eliminare %1$s?</string>
     <string name="delete_month_message">Questa operazione rimuove il mese con tutte le spese e le note.</string>
+
+    <string name="salary_label">Stipendio</string>
+    <string name="fixed_costs_label">Costi fissi</string>
+    <string name="salary_value">Entrate mese (stipendio netto): %1$s CHF</string>
+    <string name="fixed_costs_value">Costi fissi mese (casa + assicurazione): %1$s CHF</string>
+    <string name="edit_month_finances_title">Entrate e costi fissi - %1$s</string>
+    <string name="salary_input_label">Stipendio netto (CHF)</string>
+    <string name="fixed_costs_input_label">Costi fissi (CHF)</string>
+    <string name="earning_net_salary_label">Net Monthly Salary</string>
+    <string name="earning_house_cost_label">House rent cost</string>
+    <string name="earning_insurance_cost_label">Insurance cost</string>
+    <string name="monthly_salary_trend_title">Andamento stipendi per mese</string>
+    <string name="monthly_salary_value">%1$s CHF</string>
+    <string name="edit_month_salary_title">Modifica stipendio - %1$s</string>
+    <string name="month_salary_input_label">Stipendio del mese (CHF)</string>
+    <string name="monthly_house_value">Casa: %1$s CHF</string>
+    <string name="monthly_insurance_value">Assicurazione: %1$s CHF</string>
+    <string name="monthly_fixed_total_value">Totale fissi: %1$s CHF</string>
+    <string name="edit_month_finance_title">Modifica valori mese - %1$s</string>
+    <string name="month_house_input_label">Casa del mese (CHF)</string>
+    <string name="month_insurance_input_label">Assicurazione del mese (CHF)</string>
 
     <string name="action_save">Salva</string>
     <string name="action_cancel">Annulla</string>

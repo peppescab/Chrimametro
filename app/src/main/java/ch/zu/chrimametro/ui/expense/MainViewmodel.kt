@@ -126,6 +126,13 @@ class MainViewmodel @Inject constructor(
         }
     }
 
+    fun updateMonthFinances(monthName: String, salary: Float, fixedCosts: Float) {
+        viewModelScope.launch {
+            sharedPreferenceManager.updateMonthFinances(monthName, salary, fixedCosts)
+            load()
+        }
+    }
+
     suspend fun expenseAverage(): Double {
         val listMonth = sharedPreferenceManager.loadMonthWithdrawList().toMutableList()
         if (listMonth.isEmpty()) return 0.0

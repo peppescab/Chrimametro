@@ -7,6 +7,7 @@ package ch.zu.chrimametro.ui.earning
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ch.zu.chrimametro.SharedPreferenceManager
+import ch.zu.chrimametro.ui.expense.MonthWithdrawModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,9 @@ class EarningsViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow(EarningModelUiState())
     val uiState: StateFlow<EarningModelUiState> = _uiState
+
+    private val _monthSalaryHistory = MutableStateFlow<List<MonthWithdrawModel>>(emptyList())
+    val monthSalaryHistory: StateFlow<List<MonthWithdrawModel>> = _monthSalaryHistory
 
     private val _totalEarned = MutableStateFlow(0.0)
     val totalEarned: StateFlow<Double> = _totalEarned
@@ -36,6 +40,7 @@ class EarningsViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             _uiState.value = sharedPreferenceManager.loadUiEarningState()
+            _monthSalaryHistory.value = sharedPreferenceManager.loadMonthWithdrawList()
         }
     }
 
@@ -44,6 +49,29 @@ class EarningsViewModel @Inject constructor(
         viewModelScope.launch {
             sharedPreferenceManager.storeUiEarning(model)
             _uiState.value = sharedPreferenceManager.loadUiEarningState()
+        }
+    }
+
+    fun updateMonthFinancialDetails(
+        monthName: String,
+        salary: Float,
+        houseCost: Float,
+        insuranceCost: Float
+    ) {
+        viewModelScope.launch {
+            sharedPreferenceManager.updateMonthFinancialDetails(
+                monthName = monthName,
+                salary = salary,
+                houseCost = houseCost,
+                insuranceCost = insuranceCost
+            )
+            _monthSalaryHistory.value = sharedPreferenceManager.loadMonthWithdrawList()
+        }
+    }
+
+    fun refreshMonthSalaryHistory() {
+        viewModelScope.launch {
+            _monthSalaryHistory.value = sharedPreferenceManager.loadMonthWithdrawList()
         }
     }
 }

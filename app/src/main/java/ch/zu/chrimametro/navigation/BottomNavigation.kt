@@ -4,11 +4,15 @@
 */
 package ch.zu.chrimametro.navigation
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 
@@ -21,7 +25,9 @@ fun BottomNavigationBar(navController: NavController) {
         Screen.CashFlowScreen,
     )
 
-    NavigationBar {
+    NavigationBar(
+        modifier = Modifier.height(62.dp)
+    ) {
         val navBackStackEntry by navController.currentBackStackEntryAsState()
         val currentRoute = navBackStackEntry?.destination?.route
         itemsNavigation.forEach { screen ->
@@ -29,7 +35,13 @@ fun BottomNavigationBar(navController: NavController) {
                 icon = {
                     IconHandler(screen = screen)
                 },
-                label = { Text(text = screen.label) },
+                label = {
+                    Text(
+                        text = screen.label,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                },
+                alwaysShowLabel = false,
                 selected = currentRoute == screen.route,
                 onClick = {
                     if (currentRoute != screen.route) {

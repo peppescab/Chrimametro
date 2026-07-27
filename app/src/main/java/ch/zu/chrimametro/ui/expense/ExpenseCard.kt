@@ -54,8 +54,11 @@ fun MonthlyCard(
    val showAddExpenseDialog = remember { mutableStateOf(false) }
    val showAddNoteDialog = remember { mutableStateOf(false) }
    val showDeleteMonthDialog = remember { mutableStateOf(false) }
+   val showEditFinancesDialog = remember { mutableStateOf(false) }
    val expenseText = remember { mutableStateOf("") }
    val noteText = remember { mutableStateOf("") }
+   val salaryText = remember { mutableStateOf(model.salary.toString()) }
+   val fixedCostsText = remember { mutableStateOf(model.fixedCosts.toString()) }
    val parsedExpense = expenseText.value.replace(",", ".").toFloatOrNull()
    val canSaveExpense = parsedExpense != null && parsedExpense > 0f
    val canSaveNote = noteText.value.trim().isNotEmpty()
@@ -100,11 +103,41 @@ fun MonthlyCard(
            )
        ) {
            Column(Modifier.padding(16.dp)) {
-               Text(
-                   text = stringResource(R.string.month_net_value, model.getNet().toCurrency()),
-                   style = MaterialTheme.typography.bodyMedium,
-                   color = MaterialTheme.colorScheme.onSurfaceVariant
-               )
+               Row(
+                   verticalAlignment = Alignment.CenterVertically,
+                   modifier = Modifier.fillMaxWidth()
+               ) {
+                   Column(modifier = Modifier.weight(1f)) {
+                       Text(
+                           text = stringResource(R.string.month_net_value, model.getNet().toCurrency()),
+                           style = MaterialTheme.typography.bodyMedium,
+                           color = MaterialTheme.colorScheme.onSurfaceVariant
+                       )
+                       Spacer(modifier = Modifier.height(2.dp))
+                       Text(
+                           text = stringResource(R.string.salary_value, model.salary.toCurrency()),
+                           style = MaterialTheme.typography.bodySmall,
+                           color = MaterialTheme.colorScheme.onSurfaceVariant
+                       )
+                       Text(
+                           text = stringResource(R.string.fixed_costs_value, model.fixedCosts.toCurrency()),
+                           style = MaterialTheme.typography.bodySmall,
+                           color = MaterialTheme.colorScheme.onSurfaceVariant
+                       )
+                   }
+                   IconButton(onClick = {
+                       salaryText.value = model.salary.toString()
+                       fixedCostsText.value = model.fixedCosts.toString()
+                       showEditFinancesDialog.value = true
+                   }) {
+                       Icon(
+                           imageVector = Icons.Default.Edit,
+                           contentDescription = stringResource(R.string.salary_label),
+                           tint = MaterialTheme.colorScheme.primary,
+                           modifier = Modifier.size(20.dp)
+                       )
+                   }
+               }
                Spacer(modifier = Modifier.height(12.dp))
                Text(
                    text = stringResource(R.string.expenses_section_title),
@@ -230,7 +263,7 @@ fun MonthlyCard(
            confirmButton = {
                TextButton(
                    onClick = {
-                       parsedExpense?.let { viewModel?.storeInput(model.name, it) }
+                       parsedExpense?.let { viewModel.storeInput(model.name, it) }
                        expenseText.value = ""
                        showAddExpenseDialog.value = false
                    },
@@ -306,6 +339,55 @@ fun MonthlyCard(
            },
            dismissButton = {
                TextButton(onClick = { showDeleteMonthDialog.value = false }) {
+                   Text(stringResource(R.string.action_cancel))
+               }
+           }
+       )
+   }
+
+   if (showEditFinancesDialog.value && viewModel != null) {
+       val parsedSalary = salaryText.value.replace(",", ".").toFloatOrNull()
+       val parsedFixedCosts = fixedCostsText.value.replace(",", ".").toFloatOrNull()
+       val canSaveFinances = parsedSalary != null && parsedSalary > 0f &&
+               parsedFixedCosts != null && parsedFixedCosts >= 0f
+
+       AlertDialog(
+           onDismissRequest = { showEditFinancesDialog.value = false },
+           title = { Text(text = stringResource(R.string.edit_month_finances_title, model.name)) },
+           text = {
+               Column {
+                   OutlinedTextField(
+                       value = salaryText.value,
+                       onValueChange = { salaryText.value = it },
+                       singleLine = true,
+                       label = { Text(stringResource(R.string.salary_input_label)) },
+                       keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                   )
+                   Spacer(modifier = Modifier.height(8.dp))
+                   OutlinedTextField(
+                       value = fixedCostsText.value,
+                       onValueChange = { fixedCostsText.value = it },
+                       singleLine = true,
+                       label = { Text(stringResource(R.string.fixed_costs_input_label)) },
+                       keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                   )
+               }
+           },
+           confirmButton = {
+               TextButton(
+                   onClick = {
+                       if (parsedSalary != null && parsedFixedCosts != null) {
+                           viewModel.updateMonthFinances(model.name, parsedSalary, parsedFixedCosts)
+                       }
+                       showEditFinancesDialog.value = false
+                   },
+                   enabled = canSaveFinances
+               ) {
+                   Text(stringResource(R.string.action_save))
+               }
+           },
+           dismissButton = {
+               TextButton(onClick = { showEditFinancesDialog.value = false }) {
                    Text(stringResource(R.string.action_cancel))
                }
            }

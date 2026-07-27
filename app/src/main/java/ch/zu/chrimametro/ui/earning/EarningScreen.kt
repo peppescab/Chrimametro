@@ -5,19 +5,30 @@
 package ch.zu.chrimametro.ui.earning
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,12 +43,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ch.zu.chrimametro.R
 import kotlinx.coroutines.delay
+import java.util.Locale
 import java.util.Calendar
 
 @Composable
@@ -46,15 +58,24 @@ fun EarningsScreen(
 ) {
 
     val uiState by viewModel.uiState.collectAsState()
+    val monthSalaryHistory by viewModel.monthSalaryHistory.collectAsState()
 
-    val netSalary = remember { mutableStateOf(uiState.netMonthlySalary) }
-    val houseCost = remember { mutableStateOf(uiState.houseCost) }
-    val insuranceCost = remember { mutableStateOf(uiState.insuranceCost) }
+    var netSalary by remember(uiState.netMonthlySalary) { mutableStateOf(uiState.netMonthlySalary) }
+    var houseCost by remember(uiState.houseCost) { mutableStateOf(uiState.houseCost) }
+    var insuranceCost by remember(uiState.insuranceCost) { mutableStateOf(uiState.insuranceCost) }
+    val editMonthName = remember { mutableStateOf<String?>(null) }
+    val editSalaryText = remember { mutableStateOf("") }
+    val editHouseText = remember { mutableStateOf("") }
+    val editInsuranceText = remember { mutableStateOf("") }
 
     var earningsPerSecond by remember { mutableDoubleStateOf(0.0) }
     var totalEarned by remember { mutableDoubleStateOf(0.0) }
     var progress by remember { mutableFloatStateOf(0f) }
     val isWorkingHours = remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshMonthSalaryHistory()
+    }
 
     // Function to calculate earnings per second
     fun calculateEarningsPerSecond(salary: Double): Double {
@@ -149,14 +170,15 @@ fun EarningsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
         val colorProgress = MaterialTheme.colorScheme.primary
         val colorTrack = MaterialTheme.colorScheme.onSurfaceVariant
-            // Circular progress indicator
+        // Circular progress indicator
 
         if(isWorkingHours.value)
             Box(
@@ -197,36 +219,167 @@ fun EarningsScreen(
             Spacer(modifier = Modifier.height(32.dp))
             // Input for net monthly salary
             OutlinedTextField(
-                value = netSalary.value,
+                value = netSalary,
                 onValueChange = {
-                    netSalary.value = it
+                    netSalary = it
                     viewModel.saveState(uiState.copy(netMonthlySalary = it))
                 },
-                label = { Text("Net Monthly Salary") },
+                label = { Text(stringResource(R.string.earning_net_salary_label)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )
             Spacer(modifier = Modifier.height(16.dp))
             // Input for net monthly salary
             OutlinedTextField(
-                value = houseCost.value,
+                value = houseCost,
                 onValueChange = {
-                    houseCost.value = it
+                    houseCost = it
                     viewModel.saveState(uiState.copy(houseCost = it))
                 },
-                label = { Text("House rent cost") },
+                label = { Text(stringResource(R.string.earning_house_cost_label)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )
 
             Spacer(modifier = Modifier.height(16.dp))
             // Input for net monthly salary
             OutlinedTextField(
-                value = insuranceCost.value,
+                value = insuranceCost,
                 onValueChange = {
-                    insuranceCost.value = it
+                    insuranceCost = it
                     viewModel.saveState(uiState.copy(insuranceCost = it))
                 },
-                label = { Text("Insurance cost") },
+                label = { Text(stringResource(R.string.earning_insurance_cost_label)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             )
+
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = stringResource(R.string.monthly_salary_trend_title),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            monthSalaryHistory.forEach { month ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = month.name,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                text = stringResource(R.string.monthly_salary_value, month.salary.toCurrency()),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = stringResource(R.string.monthly_house_value, month.houseCost.toCurrency()),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = stringResource(R.string.monthly_insurance_value, month.insuranceCost.toCurrency()),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = stringResource(R.string.monthly_fixed_total_value, month.fixedCosts.toCurrency()),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(onClick = {
+                            editMonthName.value = month.name
+                            editSalaryText.value = month.salary.toString()
+                            editHouseText.value = month.houseCost.toString()
+                            editInsuranceText.value = month.insuranceCost.toString()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = stringResource(R.string.salary_label)
+                            )
+                        }
+                    }
+                }
+            }
+    }
+
+    if (editMonthName.value != null) {
+        val parsedSalary = editSalaryText.value.replace(",", ".").toFloatOrNull()
+        val parsedHouseCost = editHouseText.value.replace(",", ".").toFloatOrNull()
+        val parsedInsuranceCost = editInsuranceText.value.replace(",", ".").toFloatOrNull()
+        val canSave = parsedSalary != null && parsedSalary > 0f &&
+            parsedHouseCost != null && parsedHouseCost >= 0f &&
+            parsedInsuranceCost != null && parsedInsuranceCost >= 0f
+        AlertDialog(
+            onDismissRequest = { editMonthName.value = null },
+            title = {
+                Text(text = stringResource(R.string.edit_month_finance_title, editMonthName.value ?: ""))
+            },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = editSalaryText.value,
+                        onValueChange = { editSalaryText.value = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.month_salary_input_label)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = editHouseText.value,
+                        onValueChange = { editHouseText.value = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.month_house_input_label)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = editInsuranceText.value,
+                        onValueChange = { editInsuranceText.value = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.month_insurance_input_label)) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (parsedSalary != null && parsedHouseCost != null && parsedInsuranceCost != null) {
+                            viewModel.updateMonthFinancialDetails(
+                                monthName = editMonthName.value.orEmpty(),
+                                salary = parsedSalary,
+                                houseCost = parsedHouseCost,
+                                insuranceCost = parsedInsuranceCost
+                            )
+                            editMonthName.value = null
+                        }
+                    },
+                    enabled = canSave
+                ) {
+                    Text(stringResource(R.string.action_save))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { editMonthName.value = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
     }
 }
+
+private fun Float.toCurrency(): String = String.format(Locale.getDefault(), "%.2f", this)
