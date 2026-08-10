@@ -12,14 +12,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -27,10 +30,22 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import ch.zu.chrimametro.R
 import ch.zu.chrimametro.ui.theme.ChrimametroTheme
+import kotlinx.coroutines.flow.collect
 
 @Composable
 fun ExpensesScreen(viewModel: MainViewmodel) {
     val myState by viewModel.myStateFlow.collectAsState(emptyList())
+    val latestState by rememberUpdatedState(myState)
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(viewModel) {
+        viewModel.scrollToMonth.collect { monthName ->
+            val targetIndex = latestState.indexOfFirst { it.name == monthName }
+            if (targetIndex >= 0) {
+                listState.animateScrollToItem(targetIndex)
+            }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -39,6 +54,7 @@ fun ExpensesScreen(viewModel: MainViewmodel) {
             .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
         LazyColumn(
+            state = listState,
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(bottom = 92.dp)
         ) {

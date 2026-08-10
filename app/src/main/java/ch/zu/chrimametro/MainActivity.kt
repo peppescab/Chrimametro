@@ -23,6 +23,8 @@ import ch.zu.chrimametro.ui.earning.EarningsScreen
 import ch.zu.chrimametro.ui.earning.EarningsViewModel
 import ch.zu.chrimametro.ui.expense.ExpensesScreen
 import ch.zu.chrimametro.ui.expense.MainViewmodel
+import ch.zu.chrimametro.ui.fire.FireScreen
+import ch.zu.chrimametro.ui.fire.FireViewModel
 import ch.zu.chrimametro.ui.graphs.GraphViewModel
 import ch.zu.chrimametro.ui.monthbudget.MonthBudgetViewModel
 import ch.zu.chrimametro.ui.split.SplitViewModel
@@ -39,6 +41,7 @@ class MainActivity : ComponentActivity() {
     private val pieChartViewModel: GraphViewModel by viewModels()
     private val earningsViewModel: EarningsViewModel by viewModels()
     private val splitViewModel: SplitViewModel by viewModels()
+    private val fireViewModel: FireViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,6 +68,9 @@ class MainActivity : ComponentActivity() {
                             }
                             composable(Screen.CashFlowScreen.route) {
                                 CashFlowScreen(viewModel)
+                            }
+                            composable(Screen.FireScreen.route) {
+                                FireScreen(fireViewModel)
                             }
                         }
                     }

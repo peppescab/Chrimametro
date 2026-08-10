@@ -9,6 +9,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -42,10 +44,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ch.zu.chrimametro.Utils.getCurrentMonth
@@ -55,8 +59,6 @@ import ch.zu.chrimametro.ui.fromEmojiToColor
 import ch.zu.chrimametro.ui.getCashFlowBackground
 import ch.zu.chrimametro.ui.getCashFlowEmoji
 import ch.zu.chrimametro.ui.years
-import com.github.tehras.charts.bar.BarChart
-import com.github.tehras.charts.bar.BarChartData
 import com.github.tehras.charts.piechart.PieChart
 import com.github.tehras.charts.piechart.PieChartData
 import kotlin.math.max
@@ -85,16 +87,15 @@ fun CashFlowScreen(viewModel: MainViewmodel) {
     var selectedChart by remember { mutableStateOf(CashFlowChartKind.Line) }
     var selectedRange by remember { mutableStateOf(CashFlowTimeRange.All) }
     var selectedFocusYear by remember { mutableStateOf("All") }
-    val currentMonthName = remember { getCurrentMonth() }
-    val visibleMonths = remember(months, selectedRange) {
-        selectedRange.maxItems?.let { months.take(it) } ?: months
+    // Exclude the most recent month from all stats & charts
+    val completedMonths = remember(months) {
+        if (months.size > 1) months.drop(1) else emptyList()
     }
-    val chartMonths = remember(visibleMonths, currentMonthName) {
-        visibleMonths.filterNot { it.name == currentMonthName }.ifEmpty { visibleMonths }
+    val visibleMonths = remember(completedMonths, selectedRange) {
+        selectedRange.maxItems?.let { completedMonths.take(it) } ?: completedMonths
     }
-    val monthsForRanking = remember(visibleMonths) {
-        visibleMonths.drop(1).ifEmpty { visibleMonths }
-    }
+    val chartMonths = visibleMonths
+    val monthsForRanking = visibleMonths
     val bestMonth = remember(monthsForRanking) {
         monthsForRanking.maxByOrNull { it.getNet() }
     }
@@ -126,44 +127,7 @@ fun CashFlowScreen(viewModel: MainViewmodel) {
             }
         } else {
             item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    MetricCard(
-                        modifier = Modifier.weight(1f),
-                        title = "Avg Net",
-                        value = visibleMonths.map { it.getNet() }.average().toFormat() + " ₣"
-                    )
-                    MetricCard(
-                        modifier = Modifier.weight(1f),
-                        title = "Avg Expense",
-                        value = visibleMonths.map { it.getTotal() + it.fixedCosts }.average().toFormat() + " ₣"
-                    )
-                    MetricCard(
-                        modifier = Modifier.weight(1f),
-                        title = "Avg Saving %",
-                        value = visibleMonths.map { it.getPercentageCashFlow() }.average().toFormat() + "%"
-                    )
-                }
-            }
-
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    MetricCard(
-                        modifier = Modifier.weight(1f),
-                        title = "Best month",
-                        value = bestMonth?.let { "${it.name} · ${it.getNet().toFormat()} ₣" } ?: "-"
-                    )
-                    MetricCard(
-                        modifier = Modifier.weight(1f),
-                        title = "Worst month",
-                        value = worstMonth?.let { "${it.name} · ${it.getNet().toFormat()} ₣" } ?: "-"
-                    )
-                }
+                CashFlowStatsOverview(months = visibleMonths, bestMonth = bestMonth, worstMonth = worstMonth)
             }
 
             item {
@@ -180,10 +144,6 @@ fun CashFlowScreen(viewModel: MainViewmodel) {
                     months = chartMonths,
                     chartKind = selectedChart
                 )
-            }
-
-            item {
-                CashFlowInsightsCard(months = visibleMonths)
             }
 
             item {
@@ -267,26 +227,195 @@ private fun FocusMonthSection(
 }
 
 @Composable
-private fun MetricCard(
-    title: String,
+private fun CashFlowStatsOverview(
+    months: List<MonthWithdrawModel>,
+    bestMonth: MonthWithdrawModel?,
+    worstMonth: MonthWithdrawModel?
+) {
+    if (months.isEmpty()) return
+
+    val avgNet = months.map { it.getNet() }.average()
+    val avgExpense = months.map { it.getTotal() + it.fixedCosts }.average()
+    val avgSaving = months.map { it.getPercentageCashFlow() }.average()
+    val totalSaved = months.sumOf { it.getNet().toDouble() }
+    val greenCount = months.count { it.getPercentageCashFlow() > 30f }
+    val yellowCount = months.count { it.getPercentageCashFlow() in 20f..30f }
+    val redCount = months.count { it.getPercentageCashFlow() < 20f }
+
+    // Trend: last 6 vs previous 6
+    val recent6 = months.take(6)
+    val prev6 = months.drop(6).take(6)
+    val trendDelta = if (prev6.isNotEmpty()) {
+        recent6.map { it.getPercentageCashFlow() }.average() - prev6.map { it.getPercentageCashFlow() }.average()
+    } else null
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Header with trend
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Statistiche",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                if (trendDelta != null) {
+                    val arrow = if (trendDelta >= 0) "📈" else "📉"
+                    val trendColor = if (trendDelta >= 0) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
+                    Text(
+                        text = "Trend 6M $arrow ${kotlin.math.abs(trendDelta).toFormat()}%",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = trendColor
+                    )
+                }
+            }
+
+            // Main KPIs row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                StatKpi(
+                    modifier = Modifier.weight(1f),
+                    emoji = "💰",
+                    label = "Netto medio",
+                    value = "${avgNet.toFormat()} ₣",
+                    valueColor = if (avgNet >= 0) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
+                )
+                StatKpi(
+                    modifier = Modifier.weight(1f),
+                    emoji = "🔥",
+                    label = "Spesa media",
+                    value = "${avgExpense.toFormat()} ₣",
+                    valueColor = MaterialTheme.colorScheme.onSurface
+                )
+                StatKpi(
+                    modifier = Modifier.weight(1f),
+                    emoji = "🎯",
+                    label = "Saving %",
+                    value = "${avgSaving.toFormat()}%",
+                    valueColor = when {
+                        avgSaving > 30 -> Color(0xFF4CAF50)
+                        avgSaving > 20 -> Color(0xFFFF9800)
+                        else -> MaterialTheme.colorScheme.error
+                    }
+                )
+            }
+
+            // Total saved + month quality distribution
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                StatKpi(
+                    modifier = Modifier.weight(1f),
+                    emoji = "🏦",
+                    label = "Totale risparmiato",
+                    value = "${totalSaved.toFormat()} ₣",
+                    valueColor = if (totalSaved >= 0) Color(0xFF4CAF50) else MaterialTheme.colorScheme.error
+                )
+                Card(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("🟢 $greenCount", style = MaterialTheme.typography.labelLarge)
+                        Text("🟡 $yellowCount", style = MaterialTheme.typography.labelLarge)
+                        Text("🔴 $redCount", style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+
+            // Best & Worst
+            if (bestMonth != null && worstMonth != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    StatHighlight(
+                        modifier = Modifier.weight(1f),
+                        emoji = "🏆",
+                        label = bestMonth.name,
+                        value = "+${bestMonth.getNet().toFormat()} ₣",
+                        bgColor = Color(0xFF4CAF50).copy(alpha = 0.1f)
+                    )
+                    StatHighlight(
+                        modifier = Modifier.weight(1f),
+                        emoji = "⚠️",
+                        label = worstMonth.name,
+                        value = "${worstMonth.getNet().toFormat()} ₣",
+                        bgColor = MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatKpi(
+    modifier: Modifier = Modifier,
+    emoji: String,
+    label: String,
     value: String,
-    modifier: Modifier = Modifier
+    valueColor: Color
 ) {
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(
             modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
-            Text(text = title, style = MaterialTheme.typography.labelMedium)
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold
-            )
+            Text(text = "$emoji $label", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(text = value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = valueColor)
+        }
+    }
+}
+
+@Composable
+private fun StatHighlight(
+    modifier: Modifier = Modifier,
+    emoji: String,
+    label: String,
+    value: String,
+    bgColor: Color
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = bgColor)
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(emoji, style = MaterialTheme.typography.titleMedium)
+            Column {
+                Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
@@ -368,34 +497,35 @@ private fun CashFlowMainChart(
                 .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                text = chartKind.toLabel(),
-                style = MaterialTheme.typography.titleMedium
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                when (chartKind) {
-                    CashFlowChartKind.Bars -> {
-                        if (months.isEmpty()) {
-                            Text("No data")
-                        } else {
-                            CashFlowScrollableBars(months = months)
-                        }
+            when (chartKind) {
+                CashFlowChartKind.Bars,
+                CashFlowChartKind.Line -> {
+                    val entries = months.reversed().map { month ->
+                        ChartEntry(
+                            label = month.name.shortMonthLabel(),
+                            fullLabel = month.name,
+                            value = month.getNet().toFloat(),
+                            color = getCashFlowQualityColor(month.getPercentageCashFlow())
+                        )
                     }
-                    CashFlowChartKind.Line -> {
-                        CashFlowScrollableLine(months = months)
+                    NiceMonthlyChart(
+                        entries = entries,
+                        kind = chartKind
+                    )
+                }
+                CashFlowChartKind.Pie -> {
+                    val emojiCounts = months.take(12)
+                        .groupingBy { getCashFlowEmoji(it.getPercentageCashFlow()) }
+                        .eachCount()
+                    val slices = emojiCounts.map { (emoji, count) ->
+                        PieChartData.Slice(value = count.toFloat(), color = fromEmojiToColor(emoji))
                     }
-                    CashFlowChartKind.Pie -> {
-                        val emojiCounts = months.take(12)
-                            .groupingBy { getCashFlowEmoji(it.getPercentageCashFlow()) }
-                            .eachCount()
-                        val slices = emojiCounts.map { (emoji, count) ->
-                            PieChartData.Slice(value = count.toFloat(), color = fromEmojiToColor(emoji))
-                        }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         if (slices.isEmpty()) {
                             Text("No data")
                         } else {
@@ -403,7 +533,7 @@ private fun CashFlowMainChart(
                                 pieChartData = PieChartData(slices = slices),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(250.dp)
+                                    .height(240.dp)
                             )
                         }
                     }
@@ -423,99 +553,171 @@ private fun CashFlowMainChart(
     }
 }
 
-@Composable
-private fun CashFlowScrollableBars(months: List<MonthWithdrawModel>) {
-    val values = months.map { it.getNet().toFloat() }
-    val minValue = values.minOrNull() ?: 0f
-    val maxValue = values.maxOrNull() ?: 0f
-    val contentWidth = max(360, months.size * 58).dp
+private data class ChartEntry(
+    val label: String,
+    val fullLabel: String,
+    val value: Float,
+    val color: Color
+)
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        CashFlowYAxis(
-            minValue = minValue,
-            maxValue = maxValue,
-            modifier = Modifier.width(84.dp)
-        )
-        Row(
+@Composable
+private fun NiceMonthlyChart(
+    entries: List<ChartEntry>,
+    kind: CashFlowChartKind
+) {
+    if (entries.isEmpty()) {
+        Box(
             modifier = Modifier
-                .weight(1f)
-                .horizontalScroll(rememberScrollState())
+                .fillMaxWidth()
+                .height(260.dp),
+            contentAlignment = Alignment.Center
         ) {
-            BarChart(
+            Text("No data")
+        }
+        return
+    }
+
+    var selectedIndex by remember(entries) { mutableStateOf<Int?>(null) }
+    val values = entries.map { it.value }
+    val rawMin = values.min()
+    val rawMax = values.max()
+    val paddedMin = if (rawMin > 0f) 0f else rawMin - kotlin.math.abs(rawMin) * 0.1f
+    val paddedMax = if (rawMax < 0f) 0f else rawMax + kotlin.math.abs(rawMax) * 0.1f
+    val range = (paddedMax - paddedMin).takeIf { it != 0f } ?: 1f
+    val steps = 5
+    val yLabels = (steps downTo 0).map { i -> paddedMin + range * (i / steps.toFloat()) }
+
+    val chartHeightDp = 240.dp
+    val axisWidthDp = 60.dp
+    val perItemDp = if (kind == CashFlowChartKind.Bars) 44 else 56
+    val contentWidthDp = max(280, entries.size * perItemDp).dp
+
+    val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+    val zeroLineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+    val axisTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val lineColor = MaterialTheme.colorScheme.primary
+    val scrollState = rememberScrollState()
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        val selected = selectedIndex?.let { entries.getOrNull(it) }
+        Text(
+            text = if (selected != null) "${selected.fullLabel} · ${selected.value.toFormat()} ₣"
+                   else "Tocca una barra/punto per il dettaglio",
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected != null) selected.color else axisTextColor,
+            fontWeight = if (selected != null) FontWeight.SemiBold else FontWeight.Normal,
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+        Row(verticalAlignment = Alignment.Top) {
+            Column(
                 modifier = Modifier
-                    .width(contentWidth)
-                    .height(280.dp)
-                    .padding(horizontal = 4.dp),
-                barChartData = BarChartData(
-                    bars = months.mapIndexed { index, month ->
-                        BarChartData.Bar(
-                            value = month.getNet().toFloat(),
-                            color = getCashFlowQualityColor(month.getPercentageCashFlow()),
-                            label = if (shouldShowChartLabel(index, months.size)) month.name.shortMonthLabel() else ""
+                    .width(axisWidthDp)
+                    .height(chartHeightDp),
+                verticalArrangement = Arrangement.SpaceBetween,
+                horizontalAlignment = Alignment.End
+            ) {
+                yLabels.forEach { v ->
+                    Text(
+                        text = v.toFormat(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = axisTextColor,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                }
+            }
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(scrollState)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(contentWidthDp)
+                        .height(chartHeightDp)
+                        .pointerInput(entries) {
+                            detectTapGestures { tap ->
+                                val slot = size.width.toFloat() / entries.size
+                                val idx = (tap.x / slot).toInt().coerceIn(0, entries.size - 1)
+                                selectedIndex = if (selectedIndex == idx) null else idx
+                            }
+                        }
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val w = size.width
+                        val h = size.height
+
+                        yLabels.forEachIndexed { i, v ->
+                            val y = h * (i / steps.toFloat())
+                            drawLine(
+                                color = if (kotlin.math.abs(v) < 0.001f) zeroLineColor else gridColor,
+                                start = Offset(0f, y),
+                                end = Offset(w, y),
+                                strokeWidth = if (kotlin.math.abs(v) < 0.001f) 3f else 2f
+                            )
+                        }
+
+                        fun yFor(value: Float): Float {
+                            val frac = (value - paddedMin) / range
+                            return h * (1f - frac)
+                        }
+
+                        val slot = w / entries.size
+                        if (kind == CashFlowChartKind.Bars) {
+                            val barPadding = slot * 0.18f
+                            val barWidth = slot - barPadding * 2f
+                            entries.forEachIndexed { i, entry ->
+                                val x0 = slot * i + barPadding
+                                val yTop = yFor(entry.value)
+                                val zeroY = yFor(0f)
+                                val top = kotlin.math.min(yTop, zeroY)
+                                val bot = kotlin.math.max(yTop, zeroY)
+                                val isSelected = selectedIndex == i
+                                drawRect(
+                                    color = if (isSelected) entry.color else entry.color.copy(alpha = 0.75f),
+                                    topLeft = Offset(x0, top),
+                                    size = Size(barWidth, (bot - top).coerceAtLeast(2f))
+                                )
+                            }
+                        } else {
+                            fun pt(i: Int, v: Float) = Offset(slot * i + slot / 2f, yFor(v))
+                            val path = Path()
+                            entries.forEachIndexed { i, e ->
+                                val p = pt(i, e.value)
+                                if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y)
+                            }
+                            drawPath(path = path, color = lineColor, style = Stroke(width = 6f))
+                            entries.forEachIndexed { i, e ->
+                                val p = pt(i, e.value)
+                                val isSelected = selectedIndex == i
+                                drawCircle(color = e.color, radius = if (isSelected) 14f else 8f, center = p)
+                                drawCircle(color = Color.White, radius = if (isSelected) 6f else 3f, center = p)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Spacer(modifier = Modifier.width(axisWidthDp))
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(scrollState)
+            ) {
+                Row(modifier = Modifier.width(contentWidthDp)) {
+                    entries.forEachIndexed { i, entry ->
+                        Text(
+                            text = if (shouldShowChartLabel(i, entries.size)) entry.label else "",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = axisTextColor,
+                            fontWeight = if (selectedIndex == i) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(top = 6.dp)
                         )
                     }
-                )
-            )
-        }
-    }
-}
-
-@Composable
-private fun CashFlowScrollableLine(months: List<MonthWithdrawModel>) {
-    val values = months.map { it.getNet().toFloat() }
-    val minValue = values.minOrNull() ?: 0f
-    val maxValue = values.maxOrNull() ?: 0f
-    val contentWidth = max(360, months.size * 72).dp
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        CashFlowYAxis(
-            minValue = minValue,
-            maxValue = maxValue,
-            modifier = Modifier.width(84.dp)
-        )
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .horizontalScroll(rememberScrollState())
-        ) {
-            CashFlowLineChart(
-                months = months,
-                modifier = Modifier
-                    .width(contentWidth)
-                    .height(280.dp),
-                showMonthLabels = true
-            )
-        }
-    }
-}
-
-@Composable
-private fun CashFlowYAxis(
-    minValue: Float,
-    maxValue: Float,
-    modifier: Modifier = Modifier,
-    steps: Int = 4
-) {
-    val safeRange = (maxValue - minValue).takeIf { it != 0f } ?: 1f
-    Column(
-        modifier = modifier.height(280.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
-        horizontalAlignment = Alignment.End
-    ) {
-        (steps downTo 0).forEach { step ->
-            val fraction = step / steps.toFloat()
-            val value = minValue + safeRange * fraction
-            Text(
-                text = "${value.toFormat()} ₣",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+                }
+            }
         }
     }
 }
@@ -534,111 +736,7 @@ private fun String.shortMonthLabel(): String {
     return "$month $year"
 }
 
-@Composable
-private fun CashFlowLineChart(
-    months: List<MonthWithdrawModel>,
-    modifier: Modifier = Modifier,
-    showMonthLabels: Boolean
-) {
-    if (months.isEmpty()) {
-        Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            Text("No data")
-        }
-        return
-    }
 
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        val axisColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
-        val lineColor = MaterialTheme.colorScheme.primary
-
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ) {
-            val values = months.map { it.getNet().toFloat() }
-            val minValue = values.minOrNull() ?: 0f
-            val maxValue = values.maxOrNull() ?: 0f
-            val valueRange = (maxValue - minValue).takeIf { it != 0f } ?: 1f
-
-            val horizontalPadding = if (values.size == 1) size.width * 0.5f else size.width * 0.08f
-            val verticalPadding = size.height * 0.16f
-            val chartWidth = size.width - horizontalPadding * 2f
-            val chartHeight = size.height - verticalPadding * 2f
-
-            fun point(index: Int, value: Float): Offset {
-                val xFraction = if (values.size == 1) 0.5f else index / (values.size - 1).toFloat()
-                val x = horizontalPadding + chartWidth * xFraction
-                val yFraction = (value - minValue) / valueRange
-                val y = verticalPadding + chartHeight * (1f - yFraction)
-                return Offset(x, y)
-            }
-
-            repeat(4) { index ->
-                val y = verticalPadding + chartHeight * (index / 3f)
-                drawLine(
-                    color = axisColor,
-                    start = Offset(horizontalPadding, y),
-                    end = Offset(size.width - horizontalPadding, y),
-                    strokeWidth = 2f
-                )
-            }
-
-            val path = Path()
-            values.forEachIndexed { index, value ->
-                val point = point(index, value)
-                if (index == 0) {
-                    path.moveTo(point.x, point.y)
-                } else {
-                    path.lineTo(point.x, point.y)
-                }
-            }
-
-            drawPath(
-                path = path,
-                color = lineColor,
-                style = Stroke(width = 8f)
-            )
-
-            values.forEachIndexed { index, value ->
-                val point = point(index, value)
-                drawCircle(
-                    color = getCashFlowBackground(value.toDouble()),
-                    radius = 10f,
-                    center = point
-                )
-                drawCircle(
-                    color = Color.White,
-                    radius = 4f,
-                    center = point
-                )
-            }
-        }
-
-        if (showMonthLabels) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                months.forEachIndexed { index, month ->
-                    if (shouldShowChartLabel(index, months.size)) {
-                        Text(
-                            text = month.name,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.width(72.dp)
-                        )
-                    } else {
-                        Spacer(modifier = Modifier.width(72.dp))
-                    }
-                }
-            }
-        }
-    }
-}
 
 @SuppressLint("DefaultLocale")
 @Composable
@@ -728,61 +826,6 @@ private fun getCashFlowQualityColor(percent: Float): Color = when {
     percent > 30f -> Color(0xFF4CAF50)
     percent >= 20f -> Color(0xFFFFC107)
     else -> Color(0xFFE53935)
-}
-
-@Composable
-private fun CashFlowInsightsCard(months: List<MonthWithdrawModel>) {
-    val bestMonth = months.maxByOrNull { it.getNet() }
-    val worstMonth = months.minByOrNull { it.getNet() }
-    val current12 = months.take(12)
-    val previous12 = months.drop(12).take(12)
-    val currentAvgPercent = current12.map { it.getPercentageCashFlow() }.average()
-    val previousAvgPercent = previous12.map { it.getPercentageCashFlow() }.average()
-    val trendText = if (previous12.isNotEmpty()) {
-        val delta = currentAvgPercent - previousAvgPercent
-        val arrow = if (delta >= 0) "↑" else "↓"
-        "$arrow ${kotlin.math.abs(delta).toSignedFormat()}% vs previous 12 months"
-    } else {
-        "Not enough history for a 12-month comparison"
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text("Quick insights", style = MaterialTheme.typography.titleMedium)
-
-            if (bestMonth != null && worstMonth != null) {
-                Text(
-                    text = "Best month: ${bestMonth.name} (${bestMonth.getNet().toSignedFormat()} CHF)",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    text = "Worst month: ${worstMonth.name} (${worstMonth.getNet().toSignedFormat()} CHF)",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-
-            Text(
-                text = "Trend: $trendText",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                QualityLegendChip(emoji = "🟢", text = ">$30%")
-                QualityLegendChip(emoji = "🟡", text = "20-30%")
-                QualityLegendChip(emoji = "🔴", text = "<20%")
-            }
-        }
-    }
 }
 
 @Composable

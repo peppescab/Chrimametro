@@ -10,9 +10,11 @@ import ch.zu.chrimametro.SharedPreferenceManager
 import ch.zu.chrimametro.Utils
 import ch.zu.chrimametro.Utils.getCurrentMonth
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -26,6 +28,8 @@ class MainViewmodel @Inject constructor(
 
     private val _myStateFlow = MutableStateFlow(emptyList<MonthWithdrawModel>())
     val myStateFlow: StateFlow<List<MonthWithdrawModel>> = _myStateFlow.asStateFlow()
+    private val _scrollToMonth = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val scrollToMonth = _scrollToMonth.asSharedFlow()
     private val monthDateFormat = SimpleDateFormat("MMM yyyy", Locale.ENGLISH).apply {
         isLenient = false
     }
@@ -93,8 +97,10 @@ class MainViewmodel @Inject constructor(
     fun addNextMonth() {
         viewModelScope.launch {
             val listMonths = sharedPreferenceManager.loadMonthWithdrawList().first()
-            sharedPreferenceManager.saveMonthWithdrawList(Utils.addMonth(listMonths.name))
+            val nextMonth = Utils.addMonth(listMonths.name)
+            sharedPreferenceManager.saveMonthWithdrawList(nextMonth)
             load()
+            _scrollToMonth.tryEmit(nextMonth)
         }
     }
 

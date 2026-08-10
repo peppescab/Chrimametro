@@ -5,7 +5,9 @@
 package ch.zu.chrimametro.ui.expense
 
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -19,6 +21,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -39,10 +43,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import ch.zu.chrimametro.R
-import ch.zu.chrimametro.ui.getExpensesBackground
+import ch.zu.chrimametro.ui.getCashFlowEmoji
+import ch.zu.chrimametro.ui.getWeatherColor
 import java.util.Locale
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -55,6 +61,7 @@ fun MonthlyCard(
    val showAddNoteDialog = remember { mutableStateOf(false) }
    val showDeleteMonthDialog = remember { mutableStateOf(false) }
    val showEditFinancesDialog = remember { mutableStateOf(false) }
+   val expanded = remember { mutableStateOf(false) }
    val expenseText = remember { mutableStateOf("") }
    val noteText = remember { mutableStateOf("") }
    val salaryText = remember { mutableStateOf(model.salary.toString()) }
@@ -62,186 +69,193 @@ fun MonthlyCard(
    val parsedExpense = expenseText.value.replace(",", ".").toFloatOrNull()
    val canSaveExpense = parsedExpense != null && parsedExpense > 0f
    val canSaveNote = noteText.value.trim().isNotEmpty()
+   val net = model.getNet()
+   val netColor = if (net >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+   val percent = model.getPercentageCashFlow()
+   val weatherEmoji = getCashFlowEmoji(percent)
+   val weatherColor = getWeatherColor(percent)
 
-   Column(
+   Card(
        modifier = Modifier
            .fillMaxWidth()
-           .padding(vertical = 6.dp)
+           .animateContentSize(),
+       shape = MaterialTheme.shapes.large,
+       colors = CardDefaults.cardColors(
+           containerColor = weatherColor.copy(alpha = 0.15f),
+           contentColor = MaterialTheme.colorScheme.onSurface
+       )
    ) {
-       Row(
-           verticalAlignment = Alignment.CenterVertically,
-           modifier = Modifier
-               .fillMaxWidth()
-               .padding(horizontal = 8.dp, vertical = 4.dp)
-       ) {
-           Text(
-               text = model.name,
-               style = MaterialTheme.typography.headlineSmall,
-               color = MaterialTheme.colorScheme.primary,
-               modifier = Modifier.weight(1f)
-           )
-           Text(
-               text = stringResource(R.string.month_total_value, model.getTotal().toCurrencyNoDecimals()),
-               style = MaterialTheme.typography.titleMedium,
-               color = MaterialTheme.colorScheme.onSurface
-           )
-           IconButton(onClick = { showDeleteMonthDialog.value = true }) {
+       Column {
+           Row(
+               verticalAlignment = Alignment.CenterVertically,
+               modifier = Modifier
+                   .fillMaxWidth()
+                   .clickable { expanded.value = !expanded.value }
+                   .padding(horizontal = 12.dp, vertical = 10.dp)
+           ) {
+               Text(
+                   text = weatherEmoji,
+                   style = MaterialTheme.typography.headlineSmall,
+                   modifier = Modifier.padding(end = 10.dp)
+               )
+               Column(modifier = Modifier.weight(1f)) {
+                   Text(
+                       text = model.name,
+                       style = MaterialTheme.typography.titleMedium,
+                       fontWeight = FontWeight.SemiBold,
+                       color = MaterialTheme.colorScheme.primary
+                   )
+                   Text(
+                       text = stringResource(R.string.month_net_value, net.toCurrencyNoDecimals()),
+                       style = MaterialTheme.typography.labelMedium,
+                       color = netColor
+                   )
+               }
+               Text(
+                   text = stringResource(R.string.month_total_value, model.getTotal().toCurrencyNoDecimals()),
+                   style = MaterialTheme.typography.titleMedium,
+                   fontWeight = FontWeight.Bold
+               )
                Icon(
-                   imageVector = Icons.Default.Delete,
-                   contentDescription = stringResource(R.string.cd_delete_month),
-                   tint = MaterialTheme.colorScheme.error
+                   imageVector = if (expanded.value) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                   contentDescription = stringResource(
+                       if (expanded.value) R.string.cd_collapse_month else R.string.cd_expand_month
+                   ),
+                   modifier = Modifier
+                       .padding(start = 8.dp)
+                       .size(24.dp)
                )
            }
-       }
 
-       Card(
-           modifier = Modifier.fillMaxWidth(),
-           shape = MaterialTheme.shapes.large,
-           colors = CardDefaults.cardColors(
-               containerColor = getExpensesBackground(model.getTotal()).copy(alpha = 0.2f),
-               contentColor = MaterialTheme.colorScheme.onSurface
-           )
-       ) {
-           Column(Modifier.padding(16.dp)) {
-               Row(
-                   verticalAlignment = Alignment.CenterVertically,
-                   modifier = Modifier.fillMaxWidth()
-               ) {
-                   Column(modifier = Modifier.weight(1f)) {
+           if (expanded.value) {
+               Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                   Row(
+                       verticalAlignment = Alignment.CenterVertically,
+                       modifier = Modifier.fillMaxWidth()
+                   ) {
                        Text(
-                           text = stringResource(R.string.month_net_value, model.getNet().toCurrency()),
-                           style = MaterialTheme.typography.bodyMedium,
-                           color = MaterialTheme.colorScheme.onSurfaceVariant
+                           text = stringResource(R.string.salary_value, model.salary.toCurrencyNoDecimals()),
+                           style = MaterialTheme.typography.bodySmall,
+                           color = MaterialTheme.colorScheme.onSurfaceVariant,
+                           modifier = Modifier.weight(1f)
                        )
-                       Spacer(modifier = Modifier.height(2.dp))
                        Text(
-                           text = stringResource(R.string.salary_value, model.salary.toCurrency()),
+                           text = stringResource(R.string.fixed_costs_value, model.fixedCosts.toCurrencyNoDecimals()),
                            style = MaterialTheme.typography.bodySmall,
                            color = MaterialTheme.colorScheme.onSurfaceVariant
                        )
+                       IconButton(onClick = {
+                           salaryText.value = model.salary.toString()
+                           fixedCostsText.value = model.fixedCosts.toString()
+                           showEditFinancesDialog.value = true
+                       }) {
+                           Icon(
+                               imageVector = Icons.Default.Edit,
+                               contentDescription = stringResource(R.string.salary_label),
+                               tint = MaterialTheme.colorScheme.primary,
+                               modifier = Modifier.size(18.dp)
+                           )
+                       }
+                       IconButton(onClick = { showDeleteMonthDialog.value = true }) {
+                           Icon(
+                               imageVector = Icons.Default.Delete,
+                               contentDescription = stringResource(R.string.cd_delete_month),
+                               tint = MaterialTheme.colorScheme.error,
+                               modifier = Modifier.size(18.dp)
+                           )
+                       }
+                   }
+                   HorizontalDivider(
+                       color = MaterialTheme.colorScheme.outlineVariant,
+                       modifier = Modifier.padding(vertical = 8.dp)
+                   )
+
+                   if (model.expenses.isEmpty() && model.listNote.isEmpty()) {
                        Text(
-                           text = stringResource(R.string.fixed_costs_value, model.fixedCosts.toCurrency()),
+                           text = stringResource(R.string.expenses_empty),
                            style = MaterialTheme.typography.bodySmall,
-                           color = MaterialTheme.colorScheme.onSurfaceVariant
+                           color = MaterialTheme.colorScheme.onSurfaceVariant,
+                           modifier = Modifier.padding(vertical = 4.dp)
                        )
+                   } else {
+                       model.expenses.forEach { expense ->
+                           Row(
+                               verticalAlignment = Alignment.CenterVertically,
+                               modifier = Modifier.fillMaxWidth()
+                           ) {
+                               Text(
+                                   text = "· ${expense.toCurrency()} ₣",
+                                   style = MaterialTheme.typography.bodyMedium,
+                                   modifier = Modifier
+                                       .padding(vertical = 1.dp)
+                                       .weight(1f)
+                               )
+                               Icon(
+                                   imageVector = Icons.Default.Delete,
+                                   contentDescription = stringResource(R.string.cd_delete_expense),
+                                   tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                   modifier = Modifier
+                                       .size(16.dp)
+                                       .clickable { viewModel?.deleteEntry(model.name, expense) }
+                               )
+                           }
+                       }
+                       model.listNote.forEach { note ->
+                           Row(
+                               verticalAlignment = Alignment.CenterVertically,
+                               modifier = Modifier.fillMaxWidth()
+                           ) {
+                               Text(
+                                   text = "📝 $note",
+                                   style = MaterialTheme.typography.bodySmall,
+                                   color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                   modifier = Modifier
+                                       .padding(vertical = 1.dp)
+                                       .weight(1f)
+                               )
+                               Icon(
+                                   imageVector = Icons.Default.Delete,
+                                   contentDescription = stringResource(R.string.cd_delete_note),
+                                   tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                   modifier = Modifier
+                                       .size(16.dp)
+                                       .clickable { viewModel?.deleteNote(model.name, note) }
+                               )
+                           }
+                       }
                    }
-                   IconButton(onClick = {
-                       salaryText.value = model.salary.toString()
-                       fixedCostsText.value = model.fixedCosts.toString()
-                       showEditFinancesDialog.value = true
-                   }) {
-                       Icon(
-                           imageVector = Icons.Default.Edit,
-                           contentDescription = stringResource(R.string.salary_label),
-                           tint = MaterialTheme.colorScheme.primary,
-                           modifier = Modifier.size(20.dp)
-                       )
-                   }
-               }
-               Spacer(modifier = Modifier.height(12.dp))
-               Text(
-                   text = stringResource(R.string.expenses_section_title),
-                   style = MaterialTheme.typography.titleMedium,
-                   color = MaterialTheme.colorScheme.onSurface
-               )
-               if (model.expenses.isEmpty()) {
-                   Text(
-                       text = stringResource(R.string.expenses_empty),
-                       style = MaterialTheme.typography.bodyMedium,
-                       color = MaterialTheme.colorScheme.onSurfaceVariant,
-                       modifier = Modifier.padding(top = 4.dp)
-                   )
-               } else {
-                   model.expenses.forEach { expense ->
-                       Row(
-                           verticalAlignment = Alignment.CenterVertically,
-                           modifier = Modifier.fillMaxWidth()
-                       ) {
-                           Text(
-                               text = stringResource(R.string.expense_amount_value, expense.toCurrency()),
-                               style = MaterialTheme.typography.bodyLarge,
-                               modifier = Modifier
-                                   .padding(top = 1.dp)
-                                   .weight(1f)
-                           )
+
+                   Spacer(modifier = Modifier.height(8.dp))
+                   FlowRow(
+                       horizontalArrangement = Arrangement.spacedBy(8.dp),
+                       verticalArrangement = Arrangement.spacedBy(8.dp)
+                   ) {
+                       FilledTonalButton(onClick = { showAddExpenseDialog.value = true }) {
                            Icon(
-                               imageVector = Icons.Default.Delete,
-                               contentDescription = stringResource(R.string.cd_delete_expense),
-                               modifier = Modifier
-                                   .size(18.dp)
-                                   .clickable { viewModel?.deleteEntry(model.name, expense) }
+                               imageVector = Icons.Default.Edit,
+                               contentDescription = null,
+                               modifier = Modifier.size(16.dp)
+                           )
+                           Spacer(modifier = Modifier.size(4.dp))
+                           Text(
+                               text = stringResource(R.string.add_expense),
+                               style = MaterialTheme.typography.labelMedium
+                           )
+                       }
+                       OutlinedButton(onClick = { showAddNoteDialog.value = true }) {
+                           Icon(
+                               painter = painterResource(id = R.drawable.ic_notes),
+                               contentDescription = null,
+                               modifier = Modifier.size(16.dp)
+                           )
+                           Spacer(modifier = Modifier.size(4.dp))
+                           Text(
+                               text = stringResource(R.string.add_note),
+                               style = MaterialTheme.typography.labelMedium
                            )
                        }
                    }
-               }
-
-               HorizontalDivider(
-                   color = MaterialTheme.colorScheme.outlineVariant,
-                   modifier = Modifier.padding(vertical = 12.dp)
-               )
-
-               Text(
-                   text = stringResource(R.string.notes_section_title),
-                   style = MaterialTheme.typography.titleMedium,
-                   color = MaterialTheme.colorScheme.onSurface
-               )
-               if (model.listNote.isEmpty()) {
-                   Text(
-                       text = stringResource(R.string.notes_empty),
-                       style = MaterialTheme.typography.bodyMedium,
-                       color = MaterialTheme.colorScheme.onSurfaceVariant,
-                       modifier = Modifier.padding(top = 4.dp)
-                   )
-               } else {
-                   model.listNote.forEach { note ->
-                       Row(
-                           verticalAlignment = Alignment.CenterVertically,
-                           modifier = Modifier.fillMaxWidth()
-                       ) {
-                           Text(
-                               text = note,
-                               style = MaterialTheme.typography.bodyMedium,
-                               modifier = Modifier
-                                   .padding(top = 1.dp)
-                                   .weight(1f)
-                           )
-                           Icon(
-                               imageVector = Icons.Default.Delete,
-                               contentDescription = stringResource(R.string.cd_delete_note),
-                               modifier = Modifier
-                                   .size(18.dp)
-                                   .clickable { viewModel?.deleteNote(model.name, note) }
-                           )
-                       }
-                   }
-               }
-
-               Spacer(modifier = Modifier.height(12.dp))
-               FlowRow(
-                   horizontalArrangement = Arrangement.spacedBy(8.dp),
-                   verticalArrangement = Arrangement.spacedBy(8.dp)
-               ) {
-                   FilledTonalButton(onClick = { showAddExpenseDialog.value = true }) {
-                       Icon(
-                           imageVector = Icons.Default.Edit,
-                           contentDescription = null,
-                           modifier = Modifier.size(18.dp)
-                       )
-                       Spacer(modifier = Modifier.size(6.dp))
-                       Text(
-                           text = stringResource(R.string.add_expense),
-                           style = MaterialTheme.typography.labelLarge
-                       )
-                   }
-                   OutlinedButton(onClick = { showAddNoteDialog.value = true }) {
-                       Icon(
-                           painter = painterResource(id = R.drawable.ic_notes),
-                           contentDescription = null,
-                           modifier = Modifier.size(18.dp)
-                       )
-                       Spacer(modifier = Modifier.size(6.dp))
-                       Text(stringResource(R.string.add_note))
-                   }
+                   Spacer(modifier = Modifier.height(8.dp))
                }
            }
        }
@@ -400,3 +414,5 @@ private fun Float.toCurrency(): String = String.format(Locale.getDefault(), "%.2
 private fun Double.toCurrency(): String = String.format(Locale.getDefault(), "%.2f", this)
 
 private fun Double.toCurrencyNoDecimals(): String = String.format(Locale.getDefault(), "%.0f", this)
+
+private fun Float.toCurrencyNoDecimals(): String = this.toDouble().toCurrencyNoDecimals()

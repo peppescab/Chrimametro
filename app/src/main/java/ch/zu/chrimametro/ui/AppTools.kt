@@ -43,6 +43,14 @@ fun getCashFlowEmoji(percent: Float): String = when {
     else -> "🌪️"           // molto negativo
 }
 
+/** 4-tier color palette matching the 4 weather emojis. */
+fun getWeatherColor(percent: Float): Color = when {
+    percent >= 40 -> Color(0xFF4CAF50) // sun · green
+    percent >= 25 -> Color(0xFFFFC107) // sun+cloud · amber
+    percent >= 10 -> Color(0xFFFF7043) // rain · orange
+    else -> Color(0xFFE53935)          // storm · red
+}
+
 fun fromEmojiToColor(emoji: String): Color = when (emoji) {
     "☀️" -> Color(0xFF4CAF50)
     "🌤️" -> Color(0xFFFFEB3B)

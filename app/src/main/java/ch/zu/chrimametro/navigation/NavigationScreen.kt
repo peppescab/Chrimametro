@@ -25,6 +25,8 @@ sealed class Screen(
     object EarnScreen : Screen("earn", "Earnings", R.drawable.ic_wallet)
 
     object CashFlowScreen : Screen("cash", "CashFlow", R.drawable.ic_bank)
+    
+    object FireScreen : Screen("fire", "FIRE", R.drawable.ic_graph)
 }
 
 @Composable
@@ -34,7 +36,7 @@ fun IconHandler(screen: Screen) {
             Icon(
                 imageVector = icon,
                 contentDescription = screen.label,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(26.dp)
             )
         }
 
@@ -42,7 +44,7 @@ fun IconHandler(screen: Screen) {
             Icon(
                 painter = painterResource(id = icon),
                 contentDescription = screen.label,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(26.dp)
             )
         }
     }

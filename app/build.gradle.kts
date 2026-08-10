@@ -1,9 +1,11 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("kotlin-kapt")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("dagger.hilt.android.plugin")
+    id("com.google.dagger.hilt.android")
     id("com.google.gms.google-services")
 }
 
@@ -39,12 +41,27 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_17)
+        }
     }
 
     buildFeatures {
         compose = true
+    }
+
+    // Avoid split-APK deployment issues on local debug installs from Android Studio.
+    bundle {
+        abi {
+            enableSplit = false
+        }
+        density {
+            enableSplit = false
+        }
+        language {
+            enableSplit = false
+        }
     }
 
     packaging {
@@ -92,8 +109,8 @@ dependencies {
     implementation("androidx.glance:glance-material3:1.1.0")
 
     // --- Hilt ---
-    implementation("com.google.dagger:hilt-android:2.51.1")
-    kapt("com.google.dagger:hilt-android-compiler:2.51.1")
+    implementation("com.google.dagger:hilt-android:2.57.2")
+    kapt("com.google.dagger:hilt-android-compiler:2.57.2")
 
     // --- Firebase ---
     implementation(platform("com.google.firebase:firebase-bom:33.8.0"))

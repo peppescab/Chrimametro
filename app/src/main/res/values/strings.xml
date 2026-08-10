@@ -5,8 +5,10 @@
     <string name="cd_delete_expense">Elimina spesa</string>
     <string name="cd_delete_note">Elimina nota</string>
 
-    <string name="month_total_value">Totale: %1$s CHF</string>
-    <string name="month_net_value">Saldo mese (Entrate - Spese - Fissi): %1$s CHF</string>
+    <string name="month_total_value">%1$s ₣</string>
+    <string name="month_net_value">Saldo %1$s ₣</string>
+    <string name="cd_expand_month">Espandi mese</string>
+    <string name="cd_collapse_month">Comprimi mese</string>
     <string name="expenses_section_title">Spese</string>
     <string name="expenses_empty">Nessuna spesa inserita</string>
     <string name="expense_amount_value">%1$s CHF</string>
@@ -26,8 +28,8 @@
 
     <string name="salary_label">Stipendio</string>
     <string name="fixed_costs_label">Costi fissi</string>
-    <string name="salary_value">Entrate mese (stipendio netto): %1$s CHF</string>
-    <string name="fixed_costs_value">Costi fissi mese (casa + assicurazione): %1$s CHF</string>
+    <string name="salary_value">💰 %1$s ₣</string>
+    <string name="fixed_costs_value">🏠 %1$s ₣</string>
     <string name="edit_month_finances_title">Entrate e costi fissi - %1$s</string>
     <string name="salary_input_label">Stipendio netto (CHF)</string>
     <string name="fixed_costs_input_label">Costi fissi (CHF)</string>

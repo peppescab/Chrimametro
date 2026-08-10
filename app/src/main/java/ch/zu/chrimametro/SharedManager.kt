@@ -15,6 +15,11 @@ import com.google.firebase.firestore.SetOptions
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -31,6 +36,35 @@ class SharedPreferenceManager @Inject constructor(
     private val MONTH_LIST = "monthWithdrawList"
     private val MONTH_BUDGET_LIST = "monthBudgetItemL"
     private val UISTATE = "uiEarningState"
+
+    // In-memory cache to avoid repeated Firestore reads
+    private val cache = mutableMapOf<String, String>()
+    private var cacheLoaded = false
+
+    // Debounce writes: collect changes and flush after a delay
+    private val scope = CoroutineScope(Dispatchers.IO)
+    private val pendingWrites = mutableMapOf<String, String>()
+    private var writeJob: Job? = null
+    private val writeDelayMs = 2000L
+
+    private suspend fun ensureCacheLoaded() {
+        if (!cacheLoaded) {
+            try {
+                val snapshot = appStateDoc.get().await()
+                snapshot.data?.forEach { (key, value) ->
+                    if (value is String) cache[key] = value
+                }
+            } catch (_: Exception) { }
+            cacheLoaded = true
+        }
+    }
+
+    /** Force refresh from Firestore (e.g. on app resume) */
+    suspend fun refreshCache() {
+        cacheLoaded = false
+        cache.clear()
+        ensureCacheLoaded()
+    }
 
     suspend fun removeMonthWithdrawList(monthName: String, amountToRemove: Float? = null, noteToRemove: String? = null) {
         val loadedList = loadMonthWithdrawList()
@@ -292,12 +326,41 @@ class SharedPreferenceManager @Inject constructor(
     }
 
     private suspend fun getStateJson(key: String): String? {
-        val snapshot = appStateDoc.get().await()
-        return snapshot.getString(key)
+        ensureCacheLoaded()
+        return cache[key]
     }
 
     private suspend fun storeStateJson(key: String, json: String) {
-        appStateDoc.set(mapOf(key to json), SetOptions.merge()).await()
+        cache[key] = json
+        synchronized(pendingWrites) {
+            pendingWrites[key] = json
+        }
+        scheduleFlush()
+    }
+
+    private fun scheduleFlush() {
+        writeJob?.cancel()
+        writeJob = scope.launch {
+            delay(writeDelayMs)
+            flushWrites()
+        }
+    }
+
+    private suspend fun flushWrites() {
+        val toWrite: Map<String, String>
+        synchronized(pendingWrites) {
+            if (pendingWrites.isEmpty()) return
+            toWrite = pendingWrites.toMap()
+            pendingWrites.clear()
+        }
+        try {
+            appStateDoc.set(toWrite, SetOptions.merge()).await()
+        } catch (_: Exception) { }
+    }
+
+    /** Call on app pause/destroy to ensure pending data is saved */
+    fun flushNow() {
+        scope.launch { flushWrites() }
     }
 
     private fun parseMonthWithdrawList(json: String): MutableList<MonthWithdrawModel> {
