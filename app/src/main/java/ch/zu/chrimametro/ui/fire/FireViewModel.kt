@@ -150,6 +150,18 @@ class FireViewModel @Inject constructor(
             })
         }
     }
+
+    fun updateAssetValue(assetName: String, newValue: Double) {
+        updateInput {
+            it.copy(assets = it.assets.map { asset ->
+                if (asset.name == assetName) {
+                    asset.copy(currentValue = newValue.coerceAtLeast(0.0))
+                } else {
+                    asset
+                }
+            })
+        }
+    }
     
     private fun runSimulation() {
         val currentCounter = ++simulationCounter

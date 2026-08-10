@@ -446,7 +446,13 @@ private fun AssetGroupCard(
 
             if (expanded) {
                 assets.forEachIndexed { index, asset ->
-                    AssetCard(asset = asset, onDelete = { viewModel.removeAssetByName(asset.name) })
+                    AssetCard(
+                        asset = asset,
+                        onDelete = { viewModel.removeAssetByName(asset.name) },
+                        onValueChange = { newValue ->
+                            viewModel.updateAssetValue(asset.name, newValue)
+                        }
+                    )
                     if (index < assets.lastIndex) {
                         Spacer(modifier = Modifier.height(4.dp))
                     }
@@ -459,7 +465,8 @@ private fun AssetGroupCard(
 @Composable
 private fun AssetCard(
     asset: AssetType,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onValueChange: (Double) -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -511,7 +518,21 @@ private fun AssetCard(
 
             if (expanded) {
                 Divider()
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Asset value editor
+                    var editingValue by remember { mutableStateOf(asset.currentValue.toInt().toString()) }
+                    OutlinedTextField(
+                        value = editingValue,
+                        onValueChange = {
+                            editingValue = it
+                            it.toDoubleOrNull()?.let(onValueChange)
+                        },
+                        label = { Text("Current Value (CHF)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true
+                    )
+
                     Text(asset.group.displayName, style = MaterialTheme.typography.labelSmall)
                     asset.events.forEach { event ->
                         Text(
