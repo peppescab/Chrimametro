@@ -256,16 +256,47 @@ class FinancialSimulationEngine {
         }
 
         return inputs.assets.mapIndexed { index, asset ->
+            // Use asset's return if explicitly set, otherwise deduce from name
+            val resolvedReturn = if (asset.expectedAnnualReturn > 0.0 || asset.expectedAnnualReturn == 0.0 && !isDefaultAsset(asset.name)) {
+                asset.expectedAnnualReturn
+            } else {
+                resolveExpectedReturn(asset.name, inputs)
+            }
+            
             AssetState(
                 name = asset.name.ifBlank { "Asset ${index + 1}" },
                 value = asset.currentValue.coerceAtLeast(0.0),
-                expectedAnnualReturn = asset.expectedAnnualReturn,
+                expectedAnnualReturn = resolvedReturn,
                 volatility = asset.volatility.coerceAtLeast(0.0),
                 group = asset.group,
                 lifecycle = asset.lifecycle,
                 events = buildEventsForAsset(asset, inputs, currentYear)
             )
         }.toMutableList()
+    }
+
+    private fun isDefaultAsset(name: String): Boolean {
+        return name in listOf(
+            "Cash", "ETF Stocks", "ETF Bonds", "Crypto", "Gold",
+            "Private Equity", "Loan", "Deposit House", "Second Pillar",
+            "Third Pillar", "Emergency Fund", "Home"
+        )
+    }
+
+    private fun resolveExpectedReturn(assetName: String, inputs: FireInputs): Double {
+        return when (assetName) {
+            "Cash", "Emergency Fund", "Home" -> 0.0
+            "ETF Bonds" -> inputs.expectedBondReturn
+            "Crypto" -> inputs.expectedCryptoReturn
+            "Gold" -> inputs.expectedGoldReturn
+            "ETF Stocks" -> inputs.expectedEtfReturn
+            "Third Pillar" -> inputs.expectedEtfReturn
+            "Second Pillar" -> inputs.expectedBondReturn
+            "Private Equity" -> 0.12
+            "Loan" -> 0.04
+            "Deposit House" -> 0.0
+            else -> inputs.expectedEtfReturn
+        }
     }
 
     private fun buildEventsForAsset(
@@ -349,7 +380,7 @@ class FinancialSimulationEngine {
                 allocations = targetAllocations,
                 source = null,
                 inputs = inputs,
-                expectedReturn = inputs.expectedEtfReturn
+                expectedReturn = 0.0  // Let function deduce from asset name
             )
             return savings
         }
@@ -700,9 +731,13 @@ class FinancialSimulationEngine {
 
         val yearsPensionStarts = (inputs.pensionStartAge - age).coerceAtLeast(0)
         val yearsAfterPensionStarts = (inputs.lifeExpectancy - inputs.pensionStartAge).coerceAtLeast(0)
-        val annualPension = inputs.expectedPension + inputs.swissPension
+        
+        // Inflate pension from today to pensionStartAge
+        val yearsToPension = inputs.pensionStartAge - inputs.currentAge
+        val annualPensionAtPensionStart = (inputs.expectedPension + inputs.swissPension) * 
+            (1 + inputs.expectedInflation).pow(yearsToPension.toDouble())
 
-        // Use average portfolio return for discounting
+         // Use average portfolio return for discounting
         // Default allocation: 80% ETF (7%) + 15% Bonds (3%) + 3% Gold (3%) + 2% Crypto (7%)
         // ≈ 80*0.07 + 15*0.03 + 3*0.03 + 2*0.07 = 5.6 + 0.45 + 0.09 + 0.14 = 6.24%
         val portfolioReturn = 0.062 // Blended expected return
@@ -723,8 +758,9 @@ class FinancialSimulationEngine {
             val absoluteYearFromRetirement = yearsPensionStarts + yearOffset
             // Spending at that year (grows with inflation from retirement age)
             val spendingInYear = retirementSpendingAtAge * (1 + inputs.expectedInflation).pow(absoluteYearFromRetirement.toDouble())
-            // Pension at that year (also grows with inflation)
-            val pensionInYear = annualPension * (1 + inputs.expectedInflation).pow(absoluteYearFromRetirement.toDouble())
+            // Pension at that year (grows with inflation AFTER pension starts, not before)
+            // annualPensionAtPensionStart is the value at pensionStartAge, so only inflate from then
+            val pensionInYear = annualPensionAtPensionStart * (1 + inputs.expectedInflation).pow(yearOffset.toDouble())
             val netSpending = (spendingInYear - pensionInYear).coerceAtLeast(0.0)
             // Discount to retirement age using real return
             val discountFactor = (1 + realReturn).pow(absoluteYearFromRetirement.toDouble())
@@ -737,12 +773,12 @@ class FinancialSimulationEngine {
             WithdrawalStrategy.FIXED_INFLATION_ADJUSTED -> totalRequiredPV
             WithdrawalStrategy.FOUR_PERCENT_RULE -> {
                 // 4% Rule: portfolio needs to be 25x current-year net spending
-                val currentYearNetSpending = (retirementSpendingAtAge - if (age >= inputs.pensionStartAge) annualPension else 0.0).coerceAtLeast(0.0)
+                val currentYearNetSpending = (retirementSpendingAtAge - if (age >= inputs.pensionStartAge) annualPensionAtPensionStart else 0.0).coerceAtLeast(0.0)
                 currentYearNetSpending / 0.04
             }
             WithdrawalStrategy.VPW -> totalRequiredPV
             WithdrawalStrategy.GUYTON_KLINGER -> {
-                val currentYearNetSpending = (retirementSpendingAtAge - if (age >= inputs.pensionStartAge) annualPension else 0.0).coerceAtLeast(0.0)
+                val currentYearNetSpending = (retirementSpendingAtAge - if (age >= inputs.pensionStartAge) annualPensionAtPensionStart else 0.0).coerceAtLeast(0.0)
                 currentYearNetSpending / 0.04
             }
         }
