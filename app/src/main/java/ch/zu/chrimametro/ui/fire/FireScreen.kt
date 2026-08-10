@@ -63,6 +63,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
 @Composable
@@ -1135,9 +1136,10 @@ private fun YearlyBreakdownTable(evolution: List<YearProjection>) {
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            "${projection.year}",
+                            "${projection.year}\nage ${projection.age}",
                             style = MaterialTheme.typography.bodySmall.copy(
-                                color = MaterialTheme.colorScheme.primary
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 10.sp
                             ),
                             modifier = Modifier.weight(0.6f)
                         )
