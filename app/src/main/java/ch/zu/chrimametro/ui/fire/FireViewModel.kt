@@ -23,6 +23,7 @@ class FireViewModel @Inject constructor(
     val simulationState: StateFlow<FireSimulationState> = _simulationState.asStateFlow()
     
     private val engine = FinancialSimulationEngine()
+    private var simulationCounter = 0
     
     init {
         loadInputs()
@@ -151,19 +152,25 @@ class FireViewModel @Inject constructor(
     }
     
     private fun runSimulation() {
+        val currentCounter = ++simulationCounter
         viewModelScope.launch {
             try {
                 _simulationState.value = _simulationState.value.copy(isLoading = true, error = null)
                 val outputs = engine.simulate(_simulationState.value.inputs)
-                _simulationState.value = _simulationState.value.copy(
-                    outputs = outputs,
-                    isLoading = false
-                )
+                // Only update if this is still the latest simulation
+                if (currentCounter == simulationCounter) {
+                    _simulationState.value = _simulationState.value.copy(
+                        outputs = outputs,
+                        isLoading = false
+                    )
+                }
             } catch (e: Exception) {
-                _simulationState.value = _simulationState.value.copy(
-                    error = e.message,
-                    isLoading = false
-                )
+                if (currentCounter == simulationCounter) {
+                    _simulationState.value = _simulationState.value.copy(
+                        error = e.message,
+                        isLoading = false
+                    )
+                }
             }
         }
     }
