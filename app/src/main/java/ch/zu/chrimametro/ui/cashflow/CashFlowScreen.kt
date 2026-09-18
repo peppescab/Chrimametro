@@ -32,7 +32,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -52,7 +51,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import ch.zu.chrimametro.Utils.getCurrentMonth
 import ch.zu.chrimametro.ui.expense.MainViewmodel
 import ch.zu.chrimametro.ui.expense.MonthWithdrawModel
 import ch.zu.chrimametro.ui.fromEmojiToColor

@@ -49,6 +49,16 @@ class FinancialSimulationEngine {
         }
     }
 
+    private fun pensionIncomeAtAge(inputs: FireInputs, age: Int): Double {
+        val yearsFromNow = (age - inputs.currentAge).coerceAtLeast(0)
+        val inflationMultiplier = (1 + inputs.expectedInflation).pow(yearsFromNow.toDouble())
+        return when {
+            age >= inputs.combinedPensionStartAge -> inputs.combinedPension * inflationMultiplier
+            age >= inputs.swissPensionStartAge -> inputs.swissPension * inflationMultiplier
+            else -> 0.0
+        }
+    }
+
     private fun simulateDeterministic(inputs: FireInputs): FireOutputs {
         val currentYear = Calendar.getInstance().get(Calendar.YEAR)
         val portfolioEvolution = simulateYearByYear(inputs, currentYear, null)
@@ -137,11 +147,7 @@ class FinancialSimulationEngine {
             // 4. Withdrawals (only after FIRE age).
             val inflationMultiplier = (1 + inputs.expectedInflation).pow(index.toDouble())
             val inflationAdjustedSpending = baseAnnualSpending * inflationMultiplier
-            val pensionIncome = if (age >= inputs.pensionStartAge) {
-                inputs.expectedPension + inputs.swissPension
-            } else {
-                0.0
-            }
+            val pensionIncome = pensionIncomeAtAge(inputs, age)
 
             val spending = if (age >= effectiveFireAge) {
                 val targetWithdrawal = computeTargetWithdrawal(
@@ -308,13 +314,23 @@ class FinancialSimulationEngine {
             asset.name == "Third Pillar" && it.type == AssetEventType.THIRD_PILLAR_REDEEMED
         }
 
+        // Deposit house refund happens when leaving Switzerland (returnToItalyYear),
+        // not at a hardcoded offset from today.
+        if (asset.name == "Deposit House") {
+            val refundYear = inputs.returnToItalyYear.coerceAtLeast(currentYear + 1)
+            return baseEvents.map { event ->
+                if (event.type == AssetEventType.DEPOSIT_HOUSE_REFUNDED) event.copy(year = refundYear)
+                else event
+            }
+        }
+
         if (asset.name != "Third Pillar") {
             return baseEvents
         }
 
         val redemptionYear = when (inputs.thirdPillarStrategy) {
             ThirdPillarStrategy.KEEP_UNTIL_RETIREMENT -> {
-                currentYear + (inputs.pensionStartAge - inputs.currentAge).coerceAtLeast(0)
+                currentYear + (inputs.swissPensionStartAge - inputs.currentAge).coerceAtLeast(0)
             }
             ThirdPillarStrategy.REDEEM_WHEN_LEAVING_SWITZERLAND -> {
                 inputs.returnToItalyYear.coerceAtLeast(currentYear + 1)
@@ -729,58 +745,33 @@ class FinancialSimulationEngine {
         val inflationMultiplier = (1 + inputs.expectedInflation).pow(yearsFromNow.toDouble())
         val retirementSpendingAtAge = baseAnnualSpending * inflationMultiplier
 
-        val yearsPensionStarts = (inputs.pensionStartAge - age).coerceAtLeast(0)
-        val yearsAfterPensionStarts = (inputs.lifeExpectancy - inputs.pensionStartAge).coerceAtLeast(0)
-        
-        // Inflate pension from today to pensionStartAge
-        val yearsToPension = inputs.pensionStartAge - inputs.currentAge
-        val annualPensionAtPensionStart = (inputs.expectedPension + inputs.swissPension) * 
-            (1 + inputs.expectedInflation).pow(yearsToPension.toDouble())
+        val yearsUntilRetirementEnd = (inputs.lifeExpectancy - age).coerceAtLeast(0)
 
-         // Use average portfolio return for discounting
+        // Use average portfolio return for discounting
         // Default allocation: 80% ETF (7%) + 15% Bonds (3%) + 3% Gold (3%) + 2% Crypto (7%)
         // ≈ 80*0.07 + 15*0.03 + 3*0.03 + 2*0.07 = 5.6 + 0.45 + 0.09 + 0.14 = 6.24%
         val portfolioReturn = 0.062 // Blended expected return
         val realReturn = ((1 + portfolioReturn) / (1 + inputs.expectedInflation)) - 1.0
         
-        // PV of all spending needs before pension
-        var pvSpendingBeforePension = 0.0
-        for (yearOffset in 0 until yearsPensionStarts) {
-            // Spending at year (yearOffset), starting from age
-            val spendingInYear = retirementSpendingAtAge * (1 + inputs.expectedInflation).pow(yearOffset.toDouble())
-            val discountFactor = (1 + realReturn).pow(yearOffset.toDouble())
-            pvSpendingBeforePension += spendingInYear / discountFactor
+        var totalRequiredPV = 0.0
+        for (yearOffset in 0 until yearsUntilRetirementEnd) {
+           val ageInYear = age + yearOffset
+           val spendingInYear = retirementSpendingAtAge * (1 + inputs.expectedInflation).pow(yearOffset.toDouble())
+           val pensionInYear = pensionIncomeAtAge(inputs, ageInYear)
+           val netSpending = (spendingInYear - pensionInYear).coerceAtLeast(0.0)
+           val discountFactor = (1 + realReturn).pow(yearOffset.toDouble())
+           totalRequiredPV += netSpending / discountFactor
         }
-        
-        // PV of all spending needs after pension
-        var pvSpendingAfterPension = 0.0
-        for (yearOffset in 0 until yearsAfterPensionStarts) {
-            val absoluteYearFromRetirement = yearsPensionStarts + yearOffset
-            // Spending at that year (grows with inflation from retirement age)
-            val spendingInYear = retirementSpendingAtAge * (1 + inputs.expectedInflation).pow(absoluteYearFromRetirement.toDouble())
-            // Pension at that year (grows with inflation AFTER pension starts, not before)
-            // annualPensionAtPensionStart is the value at pensionStartAge, so only inflate from then
-            val pensionInYear = annualPensionAtPensionStart * (1 + inputs.expectedInflation).pow(yearOffset.toDouble())
-            val netSpending = (spendingInYear - pensionInYear).coerceAtLeast(0.0)
-            // Discount to retirement age using real return
-            val discountFactor = (1 + realReturn).pow(absoluteYearFromRetirement.toDouble())
-            pvSpendingAfterPension += netSpending / discountFactor
-        }
-
-        val totalRequiredPV = pvSpendingBeforePension + pvSpendingAfterPension
 
         return when (inputs.withdrawalStrategy) {
-            WithdrawalStrategy.FIXED_INFLATION_ADJUSTED -> totalRequiredPV
-            WithdrawalStrategy.FOUR_PERCENT_RULE -> {
-                // 4% Rule: portfolio needs to be 25x current-year net spending
-                val currentYearNetSpending = (retirementSpendingAtAge - if (age >= inputs.pensionStartAge) annualPensionAtPensionStart else 0.0).coerceAtLeast(0.0)
-                currentYearNetSpending / 0.04
-            }
-            WithdrawalStrategy.VPW -> totalRequiredPV
-            WithdrawalStrategy.GUYTON_KLINGER -> {
-                val currentYearNetSpending = (retirementSpendingAtAge - if (age >= inputs.pensionStartAge) annualPensionAtPensionStart else 0.0).coerceAtLeast(0.0)
-                currentYearNetSpending / 0.04
-            }
+           WithdrawalStrategy.FIXED_INFLATION_ADJUSTED -> totalRequiredPV
+           WithdrawalStrategy.FOUR_PERCENT_RULE,
+           WithdrawalStrategy.GUYTON_KLINGER -> {
+               // 4% Rule / Guyton-Klinger: portfolio needs to be 25x current-year net spending
+               val currentYearNetSpending = (retirementSpendingAtAge - pensionIncomeAtAge(inputs, age)).coerceAtLeast(0.0)
+               currentYearNetSpending / 0.04
+           }
+           WithdrawalStrategy.VPW -> totalRequiredPV
         }
     }
 

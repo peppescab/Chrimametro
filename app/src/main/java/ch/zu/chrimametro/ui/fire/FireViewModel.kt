@@ -95,8 +95,22 @@ class FireViewModel @Inject constructor(
         updateInput { it.copy(expectedGoldReturn = rate) }
     }
     
-    fun updateExpectedPension(amount: Double) {
-        updateInput { it.copy(expectedPension = amount) }
+    fun updateSwissPensionStartAge(age: Int) {
+        if (age <= 0) return
+        updateInput { it.copy(swissPensionStartAge = age) }
+    }
+
+    fun updateSwissPension(amount: Double) {
+        updateInput { it.copy(swissPension = amount) }
+    }
+
+    fun updateCombinedPensionStartAge(age: Int) {
+        if (age <= 0) return
+        updateInput { it.copy(combinedPensionStartAge = age) }
+    }
+
+    fun updateCombinedPension(amount: Double) {
+        updateInput { it.copy(combinedPension = amount) }
     }
     
     fun updateThirdPillarStrategy(strategy: ThirdPillarStrategy) {
@@ -184,12 +198,6 @@ class FireViewModel @Inject constructor(
                     )
                 }
             }
-        }
-    }
-    
-    fun saveInputs() {
-        viewModelScope.launch {
-            // TODO: Save to SharedPreferences when persistence is implemented
         }
     }
 }

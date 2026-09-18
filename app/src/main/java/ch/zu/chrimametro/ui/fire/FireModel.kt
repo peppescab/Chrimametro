@@ -73,8 +73,9 @@ data class AssetType(
 private fun defaultTargetAllocations(): List<AllocationTarget> {
     return listOf(
         AllocationTarget(assetName = "ETF Stocks", percentage = 0.80),
-        AllocationTarget(assetName = "ETF Bonds", percentage = 0.10),
-        AllocationTarget(assetName = "Crypto", percentage = 0.10)
+        AllocationTarget(assetName = "ETF Bonds", percentage = 0.15),
+        AllocationTarget(assetName = "Gold", percentage = 0.03),
+        AllocationTarget(assetName = "Crypto", percentage = 0.02)
     )
 }
 
@@ -129,6 +130,7 @@ private fun defaultFireAssets(): List<AssetType> {
             expectedAnnualReturn = 0.0,
             group = AssetGroup.INVESTABLE,
             events = listOf(
+                // Year is overridden at simulation time to match returnToItalyYear.
                 AssetEvent(
                     year = currentYear + 3,
                     type = AssetEventType.DEPOSIT_HOUSE_REFUNDED,
@@ -174,6 +176,16 @@ private fun defaultFireAssets(): List<AssetType> {
     )
 }
 
+// 10-year averages derived from public API data:
+// - Italy inflation: World Bank CPI, 2016-2025
+// - ETF / Bond / Gold: Yahoo Finance adjusted-close CAGR, 2016-2025
+// - Crypto: Yahoo Finance close CAGR for BTC-USD, 2016-2025
+private const val DEFAULT_ITALY_INFLATION_10Y = 0.02095485240618569
+private const val DEFAULT_ETF_RETURN_10Y = 0.1530282963755536
+private const val DEFAULT_BOND_RETURN_10Y = 0.01849318985005688
+private const val DEFAULT_CRYPTO_RETURN_10Y = 0.7279452669235245
+private const val DEFAULT_GOLD_RETURN_10Y = 0.13994900849227543
+
 data class FireInputs(
     val currentAge: Int = 43,
     val targetFireAge: Int = 50,
@@ -182,17 +194,18 @@ data class FireInputs(
     val swissYearlySavings: Double = 40000.0,
     val italianYearlySavings: Double = 20000.0,
     val monthlySpendings: Double = 2000.0,
-    val expectedInflation: Double = 0.02,
-    val expectedEtfReturn: Double = 0.07,
-    val expectedBondReturn: Double = 0.03,
-    val expectedCryptoReturn: Double = 0.07,
-    val expectedGoldReturn: Double = 0.03,
-    val expectedPension: Double = 16000.0,
-    val swissPension: Double = 8000.0,
-    val pensionStartAge: Int = 67,
+    val expectedInflation: Double = DEFAULT_ITALY_INFLATION_10Y,
+    val expectedEtfReturn: Double = DEFAULT_ETF_RETURN_10Y,
+    val expectedBondReturn: Double = DEFAULT_BOND_RETURN_10Y,
+    val expectedCryptoReturn: Double = DEFAULT_CRYPTO_RETURN_10Y,
+    val expectedGoldReturn: Double = DEFAULT_GOLD_RETURN_10Y,
+    val swissPensionStartAge: Int = 65,
+    val swissPension: Double = 3840.0,
+    val combinedPensionStartAge: Int = 69,
+    val combinedPension: Double = 24000.0,
     val portfolioCurrency: String = "CHF",
     val thirdPillarStrategy: ThirdPillarStrategy = ThirdPillarStrategy.KEEP_UNTIL_RETIREMENT,
-    val thirdPillarRedemptionTaxRate: Double = 0.0,
+    val thirdPillarRedemptionTaxRate: Double = 0.06,
     val targetAllocations: List<AllocationTarget> = defaultTargetAllocations(),
     val withdrawalStrategy: WithdrawalStrategy = WithdrawalStrategy.FIXED_INFLATION_ADJUSTED,
     val simulationMode: SimulationMode = SimulationMode.DETERMINISTIC,

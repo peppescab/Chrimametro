@@ -51,11 +51,18 @@ fun getWeatherColor(percent: Float): Color = when {
     else -> Color(0xFFE53935)          // storm · red
 }
 
-fun fromEmojiToColor(emoji: String): Color = when (emoji) {
-    "☀️" -> Color(0xFF4CAF50)
-    "🌤️" -> Color(0xFFFFEB3B)
-    "🌧️" -> Color(0xFFFF5722)
-    else -> Color(0xFF673AB7)
+/** Gradient pair for the hero card header, matching the 4 weather tiers. */
+fun getWeatherGradient(percent: Float): Pair<Color, Color> = when {
+    percent >= 40 -> Pair(Color(0xFFFCD34D), Color(0xFFF59E0B)) // ☀️ warm gold – allegro tenue
+    percent >= 25 -> Pair(Color(0xFF93C5FD), Color(0xFF60A5FA)) // 🌤️ sky blue – medio
+    percent >= 10 -> Pair(Color(0xFF64748B), Color(0xFF475569)) // 🌧️ steel grey – un po' peggiore
+    else          -> Pair(Color(0xFF374151), Color(0xFF111827)) // 🌪️ near-black – tetro
 }
 
+fun fromEmojiToColor(emoji: String): Color = when (emoji) {
+    "☀️"  -> Color(0xFF4CAF50)
+    "🌤️" -> Color(0xFFFFEB3B)
+    "🌧️" -> Color(0xFFFF5722)
+    else  -> Color(0xFF673AB7)
+}
 

@@ -197,28 +197,28 @@ class FinancialSimulationEngineTest {
     }
     
     /**
-     * Test 5: Pension income only starts at pensionStartAge
-     * Before pension age: no pension in accounting
-     * After pension age: pension reduces required withdrawals
+     * Test 5: Pension income is staged
+     * Swiss pension starts at 65, combined Swiss+Italian pension starts at 69
      */
     @Test
     fun testPensionTiming() {
         val inputs = FireInputs(
             currentAge = 40,
             targetFireAge = 50,
-            pensionStartAge = 65,
-            lifeExpectancy = 80,
+            lifeExpectancy = 70,
             monthlySpendings = 2000.0,
-            expectedPension = 15000.0,
-            swissPension = 0.0,
-            swissYearlySavings = 50000.0,
+            swissPensionStartAge = 65,
+            swissPension = 3840.0,
+            combinedPensionStartAge = 69,
+            combinedPension = 24000.0,
+            swissYearlySavings = 0.0,
             italianYearlySavings = 0.0,
             expectedInflation = 0.0,
             assets = listOf(
                 AssetType(
                     name = "Portfolio",
                     currentValue = 500000.0,
-                    expectedAnnualReturn = 0.05,
+                    expectedAnnualReturn = 0.0,
                     volatility = 0.0,
                     group = AssetGroup.INVESTABLE
                 )
@@ -228,7 +228,7 @@ class FinancialSimulationEngineTest {
         val outputs = engine.simulate(inputs)
         val projections = outputs.portfolioEvolution
         
-        // Before pension age (age < 65)
+        // Before Swiss pension age (age < 65)
         val beforePension = projections.filter { it.age < 65 }
         for (proj in beforePension) {
             assertTrue(
@@ -236,13 +236,22 @@ class FinancialSimulationEngineTest {
                 proj.pensionIncome <= 0.01  // Allow tiny rounding
             )
         }
-        
-        // After pension age (age >= 65)
-        val afterPension = projections.filter { it.age >= 65 }
-        for (proj in afterPension) {
+
+        // Swiss pension only (65-68)
+        val swissOnlyPension = projections.filter { it.age in 65..68 }
+        for (proj in swissOnlyPension) {
             assertTrue(
-                "Pension income should be 15k at age ${proj.age}, found ${proj.pensionIncome}",
-                abs(proj.pensionIncome - 15000.0) < 1.0
+                "Swiss pension should be 3840 at age ${proj.age}, found ${proj.pensionIncome}",
+                abs(proj.pensionIncome - 3840.0) < 1.0
+            )
+        }
+
+        // Combined Swiss+Italian pension (69+)
+        val combinedPension = projections.filter { it.age >= 69 }
+        for (proj in combinedPension) {
+            assertTrue(
+                "Combined pension should be 24k at age ${proj.age}, found ${proj.pensionIncome}",
+                abs(proj.pensionIncome - 24000.0) < 1.0
             )
         }
     }
@@ -253,21 +262,22 @@ class FinancialSimulationEngineTest {
      */
     @Test
     fun testRequiredPortfolioWithPension() {
-        // Scenario: Retire at 50, spend 24k/year, pension 24k at 67
-        // Before pension (ages 50-66): need full spending
-        // After pension (ages 67+): need 0 (pension covers all)
+        // Scenario: Retire at 50, spend 24k/year, pension 24k at 69
+        // Before pension (ages 50-68): need full spending
+        // After pension (ages 69+): need 0 (pension covers all)
         
         val inputs = FireInputs(
             currentAge = 43,
             targetFireAge = 50,
-            pensionStartAge = 67,
             lifeExpectancy = 90,
             monthlySpendings = 2000.0,  // 24k/year
-            expectedPension = 24000.0,  // Pension covers all spending
-            swissPension = 0.0,
+            swissPensionStartAge = 65,
+            swissPension = 3840.0,
+            combinedPensionStartAge = 69,
+            combinedPension = 24000.0,  // Pension covers all spending from 69
             swissYearlySavings = 0.0,
             italianYearlySavings = 0.0,
-            expectedInflation = 0.02,
+            expectedInflation = 0.0,
             withdrawalStrategy = WithdrawalStrategy.FIXED_INFLATION_ADJUSTED,
             assets = listOf(
                 AssetType(
@@ -282,15 +292,14 @@ class FinancialSimulationEngineTest {
         
         val outputs = engine.simulate(inputs)
         
-        // Required portfolio should be for ~17 years of spending (50-66)
+        // Required portfolio should be for ~19 years of spending (50-68)
         // not 40 years (50-90)
-        // With 2% inflation and 6.24% return:
-        // Spending @ 50: 24k * 1.02^7 ≈ 27.5k
-        // PV ≈ 27.5k * annuity(17, 4%) ≈ 355k
+        // With no inflation and ~6.2% return:
+        // PV ≈ 24k * annuity(19, 6.2%) ≈ 290k
         
         assertTrue(
-            "Required portfolio should be ~355k-410k for 17 years, got ${outputs.requiredFirePortfolio}",
-            outputs.requiredFirePortfolio in 350000.0..420000.0
+            "Required portfolio should be ~260k-290k for 19 years, got ${outputs.requiredFirePortfolio}",
+            outputs.requiredFirePortfolio in 260000.0..290000.0
         )
     }
     

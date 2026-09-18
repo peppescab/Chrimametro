@@ -6,6 +6,7 @@ package ch.zu.chrimametro.ui.expense
 
 import androidx.compose.foundation.clickable
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,6 +42,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -49,19 +53,23 @@ import androidx.compose.ui.unit.dp
 import ch.zu.chrimametro.R
 import ch.zu.chrimametro.ui.getCashFlowEmoji
 import ch.zu.chrimametro.ui.getWeatherColor
+import ch.zu.chrimametro.ui.getWeatherGradient
+import ch.zu.chrimametro.ui.theme.OnBrand
 import java.util.Locale
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MonthlyCard(
    model: MonthWithdrawModel,
-   viewModel: MainViewmodel?
+   viewModel: MainViewmodel?,
+   initiallyExpanded: Boolean = false,
+   hero: Boolean = false
 ) {
    val showAddExpenseDialog = remember { mutableStateOf(false) }
    val showAddNoteDialog = remember { mutableStateOf(false) }
    val showDeleteMonthDialog = remember { mutableStateOf(false) }
    val showEditFinancesDialog = remember { mutableStateOf(false) }
-   val expanded = remember { mutableStateOf(false) }
+   val expanded = remember { mutableStateOf(initiallyExpanded) }
    val expenseText = remember { mutableStateOf("") }
    val noteText = remember { mutableStateOf("") }
    val salaryText = remember { mutableStateOf(model.salary.toString()) }
@@ -74,6 +82,9 @@ fun MonthlyCard(
    val percent = model.getPercentageCashFlow()
    val weatherEmoji = getCashFlowEmoji(percent)
    val weatherColor = getWeatherColor(percent)
+   val (heroGradientStart, heroGradientEnd) = getWeatherGradient(percent)
+   // For dark hero gradients (storm/rain) keep text white; for light ones (sun) use dark text.
+   val heroTextColor = if (percent >= 25) Color(0xFF1A1A2E) else OnBrand
 
    Card(
        modifier = Modifier
@@ -81,50 +92,76 @@ fun MonthlyCard(
            .animateContentSize(),
        shape = MaterialTheme.shapes.large,
        colors = CardDefaults.cardColors(
-           containerColor = weatherColor.copy(alpha = 0.15f),
+           containerColor = if (hero) {
+               MaterialTheme.colorScheme.surface
+           } else {
+               weatherColor.copy(alpha = 0.15f)
+           },
            contentColor = MaterialTheme.colorScheme.onSurface
        )
    ) {
        Column {
-           Row(
-               verticalAlignment = Alignment.CenterVertically,
-               modifier = Modifier
+           val headerModifier = if (hero) {
+               Modifier
                    .fillMaxWidth()
-                   .clickable { expanded.value = !expanded.value }
-                   .padding(horizontal = 12.dp, vertical = 10.dp)
-           ) {
-               Text(
-                   text = weatherEmoji,
-                   style = MaterialTheme.typography.headlineSmall,
-                   modifier = Modifier.padding(end = 10.dp)
-               )
-               Column(modifier = Modifier.weight(1f)) {
-                   Text(
-                       text = model.name,
-                       style = MaterialTheme.typography.titleMedium,
-                       fontWeight = FontWeight.SemiBold,
-                       color = MaterialTheme.colorScheme.primary
+                   .background(
+                       brush = Brush.linearGradient(colors = listOf(heroGradientStart, heroGradientEnd))
                    )
+           } else {
+               Modifier.fillMaxWidth()
+           }
+           Column(modifier = headerModifier) {
+               if (hero) {
                    Text(
-                       text = stringResource(R.string.month_net_value, net.toCurrencyNoDecimals()),
+                       text = "Current month",
                        style = MaterialTheme.typography.labelMedium,
-                       color = netColor
+                       fontWeight = FontWeight.Medium,
+                       color = heroTextColor.copy(alpha = 0.75f),
+                       modifier = Modifier.padding(start = 14.dp, top = 12.dp)
                    )
                }
-               Text(
-                   text = stringResource(R.string.month_total_value, model.getTotal().toCurrencyNoDecimals()),
-                   style = MaterialTheme.typography.titleMedium,
-                   fontWeight = FontWeight.Bold
-               )
-               Icon(
-                   imageVector = if (expanded.value) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                   contentDescription = stringResource(
-                       if (expanded.value) R.string.cd_collapse_month else R.string.cd_expand_month
-                   ),
+               Row(
+                   verticalAlignment = Alignment.CenterVertically,
                    modifier = Modifier
-                       .padding(start = 8.dp)
-                       .size(24.dp)
-               )
+                       .fillMaxWidth()
+                       .clickable { expanded.value = !expanded.value }
+                       .padding(horizontal = 12.dp, vertical = 10.dp)
+               ) {
+                   Text(
+                       text = weatherEmoji,
+                       style = MaterialTheme.typography.headlineSmall,
+                       modifier = Modifier.padding(end = 10.dp)
+                   )
+                   Column(modifier = Modifier.weight(1f)) {
+                       Text(
+                           text = model.name,
+                           style = if (hero) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+                           fontWeight = FontWeight.SemiBold,
+                           color = if (hero) heroTextColor else MaterialTheme.colorScheme.primary
+                       )
+                       Text(
+                           text = stringResource(R.string.month_net_value, net.toCurrencyNoDecimals()),
+                           style = MaterialTheme.typography.labelMedium,
+                           color = if (hero) heroTextColor.copy(alpha = 0.8f) else netColor
+                       )
+                   }
+                   Text(
+                       text = stringResource(R.string.month_total_value, model.getTotal().toCurrencyNoDecimals()),
+                       style = if (hero) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+                       fontWeight = FontWeight.Bold,
+                       color = if (hero) heroTextColor else MaterialTheme.colorScheme.onSurface
+                   )
+                   Icon(
+                       imageVector = if (expanded.value) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                       contentDescription = stringResource(
+                           if (expanded.value) R.string.cd_collapse_month else R.string.cd_expand_month
+                       ),
+                       tint = if (hero) heroTextColor.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                       modifier = Modifier
+                           .padding(start = 8.dp)
+                           .size(24.dp)
+                   )
+               }
            }
 
            if (expanded.value) {

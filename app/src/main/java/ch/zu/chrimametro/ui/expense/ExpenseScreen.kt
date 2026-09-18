@@ -13,22 +13,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import ch.zu.chrimametro.R
+import ch.zu.chrimametro.Utils.getCurrentMonth
 import ch.zu.chrimametro.ui.theme.ChrimametroTheme
 import kotlinx.coroutines.flow.collect
 
@@ -37,6 +31,9 @@ fun ExpensesScreen(viewModel: MainViewmodel) {
     val myState by viewModel.myStateFlow.collectAsState(emptyList())
     val latestState by rememberUpdatedState(myState)
     val listState = rememberLazyListState()
+    val currentMonthName = getCurrentMonth()
+    val currentMonth = myState.firstOrNull { it.name == currentMonthName }
+    val otherMonths = myState.filterNot { it.name == currentMonthName }
 
     LaunchedEffect(viewModel) {
         viewModel.scrollToMonth.collect { monthName ->
@@ -58,26 +55,31 @@ fun ExpensesScreen(viewModel: MainViewmodel) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(bottom = 92.dp)
         ) {
-            items(myState, key = { it.name }) { month ->
-                MonthlyCard(
-                    model = month,
-                    viewModel = viewModel
-                )
+            currentMonth?.let { month ->
+                item(key = month.name) {
+                    MonthlyCard(
+                        model = month,
+                        viewModel = viewModel,
+                        initiallyExpanded = true,
+                        hero = true
+                    )
+                }
             }
-        }
 
-        FloatingActionButton(
-            onClick = { viewModel.addNextMonth() },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = stringResource(R.string.cd_add_month)
-            )
+            if (otherMonths.isNotEmpty()) {
+                item {
+                    androidx.compose.material3.Text(
+                        text = "Other months",
+                        style = androidx.compose.material3.MaterialTheme.typography.titleSmall,
+                        color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                    )
+                }
+            }
+
+            items(otherMonths, key = { it.name }) { month ->
+                MonthlyCard(model = month, viewModel = viewModel)
+            }
         }
     }
 }

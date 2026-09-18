@@ -6,12 +6,18 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkManager
@@ -53,7 +59,25 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
-                    Scaffold(bottomBar = { BottomNavigationBar(navController = navController) }) { innerPadding ->
+                    val navBackStackEntry = navController.currentBackStackEntryAsState()
+                    val currentRoute = navBackStackEntry.value?.destination?.route
+                    Scaffold(
+                        bottomBar = { BottomNavigationBar(navController = navController) },
+                        floatingActionButton = {
+                            if (currentRoute == Screen.HomeScreen.route) {
+                                FloatingActionButton(
+                                    onClick = { viewModel.addNextMonth() },
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = stringResource(R.string.cd_add_month)
+                                    )
+                                }
+                            }
+                        }
+                    ) { innerPadding ->
                         NavHost(
                             navController = navController,
                             startDestination = Screen.HomeScreen.route,

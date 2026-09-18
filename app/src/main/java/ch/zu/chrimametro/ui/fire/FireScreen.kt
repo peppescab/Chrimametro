@@ -53,17 +53,30 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ch.zu.chrimametro.ui.theme.BrandAmber
+import ch.zu.chrimametro.ui.theme.BrandEmerald
+import ch.zu.chrimametro.ui.theme.BrandIndigo
+import ch.zu.chrimametro.ui.theme.BrandRose
+import ch.zu.chrimametro.ui.theme.BrandSky
+import ch.zu.chrimametro.ui.theme.BrandTeal
+import ch.zu.chrimametro.ui.theme.BrandViolet
+import ch.zu.chrimametro.ui.theme.OnBrand
+import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
@@ -196,20 +209,6 @@ fun FireScreen(viewModel: FireViewModel) {
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
-
-        FloatingActionButton(
-            onClick = { viewModel.saveInputs() },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-        ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = "Save"
-            )
-        }
     }
 }
 
@@ -279,9 +278,24 @@ private fun InputsSection(inputs: FireInputs, viewModel: FireViewModel) {
             onValueChange = { viewModel.updateExpectedGoldReturn(it / 100) }
         )
         NumberInput(
-            label = "Expected Pension (CHF/year)",
-            value = inputs.expectedPension,
-            onValueChange = { viewModel.updateExpectedPension(it) }
+            label = "Swiss Pension Age",
+            value = inputs.swissPensionStartAge.toDouble(),
+            onValueChange = { viewModel.updateSwissPensionStartAge(it.toInt()) }
+        )
+        NumberInput(
+            label = "Swiss Pension (CHF/year)",
+            value = inputs.swissPension,
+            onValueChange = { viewModel.updateSwissPension(it) }
+        )
+        NumberInput(
+            label = "Swiss+Italian Pension Age",
+            value = inputs.combinedPensionStartAge.toDouble(),
+            onValueChange = { viewModel.updateCombinedPensionStartAge(it.toInt()) }
+        )
+        NumberInput(
+            label = "Swiss+Italian Pension (CHF/year)",
+            value = inputs.combinedPension,
+            onValueChange = { viewModel.updateCombinedPension(it) }
         )
     }
 }
@@ -290,73 +304,130 @@ private fun InputsSection(inputs: FireInputs, viewModel: FireViewModel) {
 @Composable
 private fun ThirdPillarSection(inputs: FireInputs, viewModel: FireViewModel) {
     var expanded by remember { mutableStateOf(false) }
+    var taxExpanded by remember { mutableStateOf(false) }
+    val taxOptions = remember {
+        listOf(0.0, 0.02, 0.04, 0.06, 0.08, 0.10)
+    }
 
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Third Pillar Strategy", style = MaterialTheme.typography.titleSmall)
-
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedTextField(
-                value = inputs.thirdPillarStrategy.displayName,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Strategy") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                modifier = Modifier
-                    .menuAnchor()
-                    .fillMaxWidth()
+            Text("Third Pillar", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Choose the redemption strategy and a default tax rate.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            DropdownMenu(
+
+            ExposedDropdownMenuBox(
                 expanded = expanded,
-                onDismissRequest = { expanded = false }
+                onExpandedChange = { expanded = !expanded }
             ) {
-                ThirdPillarStrategy.values().forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option.displayName) },
-                        onClick = {
-                            viewModel.updateThirdPillarStrategy(option)
-                            expanded = false
-                        }
-                    )
+                OutlinedTextField(
+                    value = inputs.thirdPillarStrategy.displayName,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Strategy") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth()
+                )
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    ThirdPillarStrategy.values().forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option.displayName) },
+                            onClick = {
+                                viewModel.updateThirdPillarStrategy(option)
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            ExposedDropdownMenuBox(
+                expanded = taxExpanded,
+                onExpandedChange = { taxExpanded = !taxExpanded }
+            ) {
+                OutlinedTextField(
+                    value = formatPercentageInput(inputs.thirdPillarRedemptionTaxRate * 100),
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Default tax") },
+                    suffix = { Text("%") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = taxExpanded) },
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth()
+                )
+                DropdownMenu(
+                    expanded = taxExpanded,
+                    onDismissRequest = { taxExpanded = false }
+                ) {
+                    taxOptions.forEach { rate ->
+                        DropdownMenuItem(
+                            text = { Text("${formatPercentageInput(rate * 100)}%") },
+                            onClick = {
+                                viewModel.updateThirdPillarRedemptionTaxRate(rate)
+                                taxExpanded = false
+                            }
+                        )
+                    }
                 }
             }
         }
-
-        PercentageInput(
-            label = "Redemption Tax %",
-            value = inputs.thirdPillarRedemptionTaxRate * 100,
-            onValueChange = { viewModel.updateThirdPillarRedemptionTaxRate(it / 100) }
-        )
     }
 }
 
 @Composable
 private fun TargetAllocationSection(inputs: FireInputs, viewModel: FireViewModel) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("Target Allocation", style = MaterialTheme.typography.titleSmall)
-        Text(
-            "New contributions and matured assets automatically follow this allocation.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("Target Allocation", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "New contributions and matured assets automatically follow this allocation.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
 
-        PercentageInput(
-            label = "ETF Stocks %",
-            value = targetAllocationPercentage(inputs, "ETF Stocks") * 100,
-            onValueChange = { viewModel.updateTargetAllocation("ETF Stocks", it / 100) }
-        )
-        PercentageInput(
-            label = "ETF Bonds %",
-            value = targetAllocationPercentage(inputs, "ETF Bonds") * 100,
-            onValueChange = { viewModel.updateTargetAllocation("ETF Bonds", it / 100) }
-        )
-        PercentageInput(
-            label = "Crypto %",
-            value = targetAllocationPercentage(inputs, "Crypto") * 100,
-            onValueChange = { viewModel.updateTargetAllocation("Crypto", it / 100) }
-        )
+            PercentageInput(
+                label = "ETF Stocks %",
+                value = targetAllocationPercentage(inputs, "ETF Stocks") * 100,
+                onValueChange = { viewModel.updateTargetAllocation("ETF Stocks", it / 100) }
+            )
+            PercentageInput(
+                label = "ETF Bonds %",
+                value = targetAllocationPercentage(inputs, "ETF Bonds") * 100,
+                onValueChange = { viewModel.updateTargetAllocation("ETF Bonds", it / 100) }
+            )
+            PercentageInput(
+                label = "Gold %",
+                value = targetAllocationPercentage(inputs, "Gold") * 100,
+                onValueChange = { viewModel.updateTargetAllocation("Gold", it / 100) }
+            )
+            PercentageInput(
+                label = "Crypto %",
+                value = targetAllocationPercentage(inputs, "Crypto") * 100,
+                onValueChange = { viewModel.updateTargetAllocation("Crypto", it / 100) }
+            )
+        }
     }
 }
 
@@ -813,108 +884,172 @@ private fun OutputsSection(inputs: FireInputs, outputs: FireOutputs) {
 @Composable
 private fun DashboardOverviewSection(inputs: FireInputs, outputs: FireOutputs) {
     val progress = (outputs.fiPercentage / 100.0).coerceIn(0.0, 1.0).toFloat()
+    val modeLabel = if (inputs.simulationMode == SimulationMode.MONTE_CARLO) {
+        "Monte Carlo"
+    } else {
+        "Deterministic"
+    }
+    val projectedLabel = if (inputs.simulationMode == SimulationMode.MONTE_CARLO) {
+        "Projected at FIRE (MC Median)"
+    } else {
+        "Projected at FIRE"
+    }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp),
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+            containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        shape = RoundedCornerShape(24.dp)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                "At a glance",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "At a glance",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DashboardMetricCard(
-                    label = "Net Worth",
-                    value = currencyShort(inputs.totalNetWorth),
-                    icon = Icons.Default.Star,
-                    modifier = Modifier.weight(1f)
-                )
-                DashboardMetricCard(
-                    label = "Investable",
-                    value = currencyShort(inputs.investablePortfolio),
-                    icon = Icons.Default.CheckCircle,
-                    modifier = Modifier.weight(1f)
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            brush = Brush.linearGradient(
+                                colors = listOf(BrandSky, BrandIndigo)
+                            ),
+                            shape = RoundedCornerShape(22.dp)
+                        )
+                        .padding(18.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            projectedLabel,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = OnBrand.copy(alpha = 0.85f)
+                        )
+                        Text(
+                            currencyShort(outputs.projectedPortfolioAtFire),
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = OnBrand
+                        )
+                        Text(
+                            "Need ${currencyShort(outputs.requiredFirePortfolio)} to reach FIRE",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = OnBrand.copy(alpha = 0.85f)
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DashboardMiniChip("FIRE ${outputs.fiPercentage.roundToInt()}%")
+                            DashboardMiniChip("Age ${ageLabel(outputs.recommendedFireAge)}")
+                            DashboardMiniChip(modeLabel)
+                        }
+                    }
+                }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DashboardMetricCard(
-                    label = if (inputs.simulationMode == SimulationMode.MONTE_CARLO)
-                        "Projected at FIRE (MC Median)"
-                    else
-                        "Projected at FIRE (Deterministic)",
-                    value = currencyShort(outputs.projectedPortfolioAtFire),
-                    icon = Icons.Default.Refresh,
-                    modifier = Modifier.weight(1f)
-                )
-                DashboardMetricCard(
-                    label = "Required at FIRE",
-                    value = currencyShort(outputs.requiredFirePortfolio),
-                    icon = Icons.Default.Warning,
-                    modifier = Modifier.weight(1f)
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DashboardMetricCard(
+                        label = "Net Worth",
+                        value = currencyShort(inputs.totalNetWorth),
+                        icon = Icons.Default.Star,
+                        accent = BrandIndigo,
+                        modifier = Modifier.weight(1f)
+                    )
+                    DashboardMetricCard(
+                        label = "Investable",
+                        value = currencyShort(inputs.investablePortfolio),
+                        icon = Icons.Default.CheckCircle,
+                        accent = BrandEmerald,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DashboardMetricCard(
+                        label = "Required at FIRE",
+                        value = currencyShort(outputs.requiredFirePortfolio),
+                        icon = Icons.Default.Warning,
+                        accent = BrandAmber,
+                        modifier = Modifier.weight(1f)
+                    )
+                    DashboardMetricCard(
+                        label = "FIRE Progress",
+                        value = "${outputs.fiPercentage.roundToInt()}%",
+                        icon = Icons.Default.Favorite,
+                        accent = BrandRose,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DashboardMetricCard(
+                        label = "Earliest FIRE Age",
+                        value = ageLabel(outputs.recommendedFireAge),
+                        icon = Icons.Default.DateRange,
+                        accent = BrandViolet,
+                        modifier = Modifier.weight(1f)
+                    )
+                    DashboardMetricCard(
+                        label = "Coast FIRE",
+                        value = ageLabel(outputs.coastFireAge),
+                        icon = Icons.Default.Info,
+                        accent = BrandTeal,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    DashboardMetricCard(
+                        label = "Barista FIRE",
+                        value = ageLabel(outputs.baristaFireAge),
+                        icon = Icons.Default.Settings,
+                        accent = BrandSky,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DashboardMetricCard(
-                    label = "FIRE Progress",
-                    value = "${outputs.fiPercentage.roundToInt()}%",
-                    icon = Icons.Default.Favorite,
-                    modifier = Modifier.weight(1f)
-                )
-                DashboardMetricCard(
-                    label = "Earliest FIRE Age",
-                    value = ageLabel(outputs.recommendedFireAge),
-                    icon = Icons.Default.DateRange,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DashboardMetricCard(
-                    label = "Coast FIRE",
-                    value = ageLabel(outputs.coastFireAge),
-                    icon = Icons.Default.Info,
-                    modifier = Modifier.weight(1f)
-                )
-                DashboardMetricCard(
-                    label = "Barista FIRE",
-                    value = ageLabel(outputs.baristaFireAge),
-                    icon = Icons.Default.Settings,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            // Show Monte Carlo probability of success only in MC mode
             if (inputs.simulationMode == SimulationMode.MONTE_CARLO) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     DashboardMetricCard(
                         label = "MC Success Probability",
                         value = "${outputs.probabilityOfSuccess.roundToInt()}%",
                         icon = Icons.Default.CheckCircle,
+                        accent = BrandEmerald,
                         modifier = Modifier.weight(1f)
                     )
                     DashboardMetricCard(
                         label = "MC Iterations",
                         value = "${inputs.monteCarloIterations}",
                         icon = Icons.Default.Refresh,
+                        accent = BrandIndigo,
                         modifier = Modifier.weight(1f)
                     )
                 }
             }
 
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -927,12 +1062,18 @@ private fun DashboardOverviewSection(inputs: FireInputs, outputs: FireOutputs) {
                     Text(
                         "${outputs.fiPercentage.roundToInt()}%",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
+                        fontWeight = FontWeight.Bold,
+                        color = BrandIndigo
                     )
                 }
                 LinearProgressIndicator(
                     progress = { progress },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(999.dp)),
+                    color = BrandIndigo,
+                    trackColor = BrandIndigo.copy(alpha = 0.15f)
                 )
                 Row(
                     modifier = Modifier
@@ -954,7 +1095,8 @@ private fun DashboardOverviewSection(inputs: FireInputs, outputs: FireOutputs) {
                     Text(
                         "Gap: ${currencyShort(gap)}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (gap > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (gap > 0) BrandRose else BrandEmerald
                     )
                 }
             }
@@ -963,33 +1105,68 @@ private fun DashboardOverviewSection(inputs: FireInputs, outputs: FireOutputs) {
 }
 
 @Composable
+private fun DashboardMiniChip(text: String) {
+    Box(
+        modifier = Modifier
+            .background(
+                color = OnBrand.copy(alpha = 0.18f),
+                shape = RoundedCornerShape(999.dp)
+            )
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+            color = OnBrand
+        )
+    }
+}
+
+@Composable
 private fun DashboardMetricCard(
     label: String,
     value: String,
     icon: ImageVector,
+    accent: Color,
     modifier: Modifier = Modifier
 ) {
     Card(
         modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        )
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                Box(
                     modifier = Modifier
-                )
+                        .size(28.dp)
+                        .background(
+                            color = accent.copy(alpha = 0.16f),
+                            shape = RoundedCornerShape(9.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
                 Text(
                     label,
                     style = MaterialTheme.typography.labelSmall,
@@ -998,8 +1175,9 @@ private fun DashboardMetricCard(
             }
             Text(
                 value,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.primary
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -1077,7 +1255,7 @@ private fun OutputMetric(label: String, value: String) {
 @Composable
 private fun YearlyBreakdownTable(evolution: List<YearProjection>) {
     val expandedYearIndices = remember { mutableStateOf(setOf<Int>()) }
-    
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1098,12 +1276,42 @@ private fun YearlyBreakdownTable(evolution: List<YearProjection>) {
                         .background(MaterialTheme.colorScheme.primaryContainer)
                         .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
-                    Text("Year", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.weight(0.7f))
-                    Text("Start", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.weight(1.0f))
-                    Text("Contrib", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.weight(1.0f))
-                    Text("Returns", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.weight(1.0f))
-                    Text("Withdraw", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.weight(1.0f))
-                    Text("End", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.weight(1.1f))
+                    Text(
+                        "Year",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(0.7f)
+                    )
+                    Text(
+                        "Start",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(1.0f)
+                    )
+                    Text(
+                        "Contrib",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(1.0f)
+                    )
+                    Text(
+                        "Returns",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(1.0f)
+                    )
+                    Text(
+                        "Withdraw",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(1.0f)
+                    )
+                    Text(
+                        "End",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(1.1f)
+                    )
                 }
 
                 Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
@@ -1119,7 +1327,7 @@ private fun YearlyBreakdownTable(evolution: List<YearProjection>) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .background(rowBg)
-                            .clickable { 
+                            .clickable {
                                 expandedYearIndices.value = if (isExpanded) {
                                     expandedYearIndices.value - index
                                 } else {
@@ -1263,7 +1471,6 @@ private fun YearlyBreakdownTable(evolution: List<YearProjection>) {
     }
 }
 
-
 @Composable
 private fun FireReadinessTable(readinessByAge: List<FireReadinessRow>) {
     Column(
@@ -1292,16 +1499,37 @@ private fun FireReadinessTable(readinessByAge: List<FireReadinessRow>) {
                         .background(MaterialTheme.colorScheme.primaryContainer)
                         .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
-                    Text("Age", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.weight(0.8f))
-                    Text("Required", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.weight(1.2f))
-                    Text("Projected", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.weight(1.2f))
-                    Text("Diff", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.weight(1.0f))
+                    Text(
+                        "Age",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(0.8f)
+                    )
+                    Text(
+                        "Required",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(1.2f)
+                    )
+                    Text(
+                        "Projected",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(1.2f)
+                    )
+                    Text(
+                        "Diff",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.weight(1.0f)
+                    )
                 }
 
                 Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
 
                 readinessByAge.forEachIndexed { index, row ->
-                    val rowBg = if (index % 2 == 0) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
+                    val rowBg =
+                        if (index % 2 == 0) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1310,8 +1538,16 @@ private fun FireReadinessTable(readinessByAge: List<FireReadinessRow>) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text("${row.age}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(0.8f))
-                        Text(currencyShort(row.requiredPortfolio), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1.2f))
-                        Text(currencyShort(row.projectedPortfolio), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1.2f))
+                        Text(
+                            currencyShort(row.requiredPortfolio),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1.2f)
+                        )
+                        Text(
+                            currencyShort(row.projectedPortfolio),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1.2f)
+                        )
                         Text(
                             currencyShort(row.difference),
                             style = MaterialTheme.typography.bodySmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
@@ -1336,16 +1572,37 @@ private fun NumberInput(
     onValueChange: (Double) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var text by remember { mutableStateOf(formatNumberInput(value)) }
+
+    LaunchedEffect(value) {
+        val formatted = formatNumberInput(value)
+        if (text != formatted) {
+            text = formatted
+        }
+    }
+
     OutlinedTextField(
-        value = if (value == 0.0) "" else value.toInt().toString(),
+        value = text,
         onValueChange = { newValue ->
-            onValueChange(newValue.toDoubleOrNull() ?: 0.0)
+            text = newValue
+            val normalized = newValue.replace(',', '.')
+            if (normalized.isBlank()) {
+                onValueChange(0.0)
+            } else if (normalized != "." && normalized != "-" && normalized != "-." && normalized.toDoubleOrNull() != null) {
+                onValueChange(normalized.toDouble())
+            }
         },
         label = { Text(label) },
         modifier = modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         singleLine = true
     )
+}
+
+private fun formatNumberInput(value: Double): String {
+    if (value == 0.0) return ""
+    val rounded = String.format(Locale.US, "%.2f", value)
+    return rounded.trimEnd('0').trimEnd('.')
 }
 
 @Composable
@@ -1355,17 +1612,38 @@ private fun PercentageInput(
     onValueChange: (Double) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var text by remember { mutableStateOf(formatPercentageInput(value)) }
+
+    LaunchedEffect(value) {
+        val formatted = formatPercentageInput(value)
+        if (text != formatted) {
+            text = formatted
+        }
+    }
+
     OutlinedTextField(
-        value = if (value == 0.0) "" else value.toInt().toString(),
+        value = text,
         onValueChange = { newValue ->
-            onValueChange(newValue.toDoubleOrNull() ?: 0.0)
+            text = newValue
+            val normalized = newValue.replace(',', '.')
+            if (normalized.isBlank()) {
+                onValueChange(0.0)
+            } else if (normalized != "." && normalized != "-" && normalized != "-." && normalized.toDoubleOrNull() != null) {
+                onValueChange(normalized.toDouble())
+            }
         },
         label = { Text(label) },
         modifier = modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         suffix = { Text("%") },
         singleLine = true
     )
+}
+
+private fun formatPercentageInput(value: Double): String {
+    if (value == 0.0) return ""
+    val rounded = String.format(Locale.US, "%.2f", value)
+    return rounded.trimEnd('0').trimEnd('.')
 }
 
 private fun targetAllocationPercentage(inputs: FireInputs, assetName: String): Double {
@@ -1487,8 +1765,10 @@ private fun AssumptionsCard(inputs: FireInputs) {
             OutputMetric("Monthly Spending", currency(inputs.monthlySpendings))
             OutputMetric("Target FIRE Age", "${inputs.targetFireAge}")
             OutputMetric("Life Expectancy", "${inputs.lifeExpectancy}")
-            OutputMetric("Pension Start Age", "${inputs.pensionStartAge}")
-            OutputMetric("Pension Income", currency(inputs.expectedPension + inputs.swissPension))
+            OutputMetric("Swiss Pension Age", "${inputs.swissPensionStartAge}")
+            OutputMetric("Swiss Pension", currency(inputs.swissPension))
+            OutputMetric("Swiss+Italian Pension Age", "${inputs.combinedPensionStartAge}")
+            OutputMetric("Swiss+Italian Pension", currency(inputs.combinedPension))
             OutputMetric("Third Pillar Strategy", inputs.thirdPillarStrategy.displayName)
             OutputMetric(
                 "3rd Pillar Redemption Tax",
